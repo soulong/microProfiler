@@ -10,3 +10,8 @@ build/
 logs/
 .DS_Store
 Thumbs.db
+
+# Non-package files
+.opencode/
+openspec/
+AGENTS.md
