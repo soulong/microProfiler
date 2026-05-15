@@ -1,0 +1,26 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<LMSDataContainerHeader Version="2" ApplicationDescription="LMSIOManager" ApplicationVersion="1,9,5274,2">
+  <Element Name="Sequence 002" Visibility="1" CopyOption="1" UniqueID="c913ab07-4cf9-11f1-aa59-b49691e21aed">
+    <Data>
+      <Collection ChildTypeTest="AcceptAll">
+        <ChildTypeList />
+        <Attachment Name="ACQUISITION_EVENT" Application="LAS AF" Version="1.0">
+          <Event Name="" TimeStampHigh="31252742" TimeStampLow="2402754368" Type="5" Description="" RelativeTime="0" ShowInGraph="True" ShowInEventList="True" TrigChannel="-1" TriggerID="0" />
+        </Attachment>
+      </Collection>
+    </Data>
+    <Memory Size="0" MemoryBlockID="" />
+    <Children>
+      <Reference File="..%5Cb%5Cmetadata%5Cb.xlcf" UUID="c913ab0a-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File="..%5Cc%5Cmetadata%5Cc.xlcf" UUID="c913ab75-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File="..%5Cd%5Cmetadata%5Cd.xlcf" UUID="c913abe5-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File="..%5Ce%5Cmetadata%5Ce.xlcf" UUID="c913ac43-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File="..%5Cf%5Cmetadata%5Cf.xlcf" UUID="c913ac91-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File="..%5Cg%5Cmetadata%5Cg.xlcf" UUID="c913ad17-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File="..%5Ch%5Cmetadata%5Ch.xlcf" UUID="c913ad7b-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File="..%5Ci%5Cmetadata%5Ci.xlcf" UUID="c913add1-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File="..%5Cj%5Cmetadata%5Cj.xlcf" UUID="c913ae5d-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File="..%5Ck%5Cmetadata%5Ck.xlcf" UUID="c913aeb3-4cf9-11f1-aa59-b49691e21aed" />
+    </Children>
+  </Element>
+</LMSDataContainerHeader>

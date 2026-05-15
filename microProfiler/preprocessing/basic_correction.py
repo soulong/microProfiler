@@ -1,0 +1,260 @@
+"""BaSiC shading correction — thin wrapper around the basic/ folder.
+
+The actual BaSiC algorithm lives in ``microProfiler.preprocessing.basic``
+(copied verbatim from the original image_profiler).
+"""
+
+from __future__ import annotations
+
+import pickle
+import random
+from pathlib import Path
+from typing import List, Optional, Union
+
+import numpy as np
+
+from microProfiler.io.dataset import ImageDataset
+from microProfiler.io.loaders import read_image, write_image
+from microProfiler.preprocessing.basic.basic import BaSiC
+
+
+def _basic_fit(
+    image_paths: List[Path],
+    n_image: int = 50,
+    enable_darkfield: bool = False,
+    working_size: int = 64,
+) -> BaSiC:
+    """Fit BaSiC model on a set of images.
+
+    Parameters
+    ----------
+    image_paths : list of Path
+        Image file paths for fitting.
+    n_image : int
+        Max number of images to use.
+    enable_darkfield : bool
+        Enable darkfield estimation.
+    working_size : int
+        Working size for the BaSiC model.
+
+    Returns
+    -------
+    BaSiC
+        Fitted BaSiC model.
+    """
+    if len(image_paths) > n_image:
+        image_paths = random.sample(image_paths, k=n_image)
+
+    imgs = [read_image(p) for p in image_paths]
+    shapes = {img.shape for img in imgs}
+    if len(shapes) > 1:
+        raise ValueError(
+            f"BaSiC fit requires uniform image shapes, got {len(shapes)} different shapes: {shapes}"
+        )
+    imgs = np.stack(imgs)
+    basic = BaSiC(
+        get_darkfield=enable_darkfield,
+        smoothness_flatfield=1,
+        smoothness_darkfield=1,
+        working_size=working_size,
+        max_workers=8,
+    )
+    basic.fit(imgs)
+    return basic
+
+
+def _basic_transform(
+    image_paths: List[Path],
+    model: BaSiC,
+    target_dir: Path,
+) -> int:
+    """Apply BaSiC model to correct images and save to target_dir.
+
+    Parameters
+    ----------
+    image_paths : list of Path
+        Image file paths to correct.
+    model : BaSiC
+        Fitted BaSiC model.
+    target_dir : Path
+        Directory to write corrected images.
+
+    Returns
+    -------
+    int
+        Number of images written.
+    """
+    imgs = np.stack([read_image(p) for p in image_paths])
+    dtype_in = imgs.dtype
+    corrected = model.transform(imgs)
+
+    if dtype_in == np.uint16:
+        corrected = np.clip(corrected, 0, 65535)
+    elif dtype_in == np.uint8:
+        corrected = np.clip(corrected, 0, 255)
+    corrected = corrected.astype(dtype_in)
+
+    n = 0
+    for src, corr in zip(image_paths, corrected):
+        dst = target_dir / src.name
+        write_image(dst, corr)
+        n += 1
+    return n
+
+
+def fit_models(
+    ds: ImageDataset,
+    channels: Optional[List[str]] = None,
+    n_image: int = 50,
+    working_size: int = 64,
+    enable_darkfield: bool = False,
+    root_dir: Optional[Union[str, Path]] = None,
+) -> Path:
+    """Fit BaSiC models for specified channels.
+
+    Parameters
+    ----------
+    ds : ImageDataset
+        Dataset to fit from.
+    channels : list of str, optional
+        Channels to fit.  Defaults to all intensity channels.
+    n_image : int
+        Number of images to use for fitting.
+    working_size : int
+        Working size for BaSiC model.
+    enable_darkfield : bool
+        Enable darkfield estimation.
+    root_dir : str or Path, optional
+        Root directory for output (defaults to ``ds.measurement_dir.parent``).
+
+    Returns
+    -------
+    Path
+        Directory containing the saved model files.
+    """
+    channels = channels or ds.intensity_colnames
+    metadata = ds.metadata
+    root = Path(root_dir) if root_dir else ds.measurement_dir.parent
+
+    model_dir = root / "BaSiC_model"
+    model_dir.mkdir(parents=True, exist_ok=True)
+
+    for chan in channels:
+        paths = [
+            Path(metadata.iloc[i]["directory"]) / metadata.iloc[i][chan]
+            for i in range(len(metadata))
+        ]
+        paths = [p for p in paths if p.exists()]
+        if not paths:
+            continue
+
+        model = _basic_fit(paths, n_image, enable_darkfield, working_size)
+
+        with open(model_dir / f"model_{chan}.pkl", "wb") as f:
+            pickle.dump(model, f)
+
+        write_image(
+            model_dir / f"model_{chan}_flatfield.tiff",
+            model.flatfield.astype(np.float32),
+        )
+        if enable_darkfield:
+            write_image(
+                model_dir / f"model_{chan}_darkfield.tiff",
+                model.darkfield.astype(np.float32),
+            )
+
+    return model_dir
+
+
+def transform_images(
+    ds: ImageDataset,
+    channels: Optional[List[str]] = None,
+    root_dir: Optional[Union[str, Path]] = None,
+) -> ImageDataset:
+    """Apply fitted BaSiC models to correct images.
+
+    Parameters
+    ----------
+    ds : ImageDataset
+        Dataset with saved BaSiC models in ``BaSiC_model/`` subdirectory.
+    channels : list of str, optional
+        Channels to transform.  Defaults to all intensity channels.
+    root_dir : str or Path, optional
+        Root directory for output (defaults to ``ds.measurement_dir.parent``).
+
+    Returns
+    -------
+    ImageDataset
+        New dataset with corrected images.
+    """
+    channels = channels or ds.intensity_colnames
+    metadata = ds.metadata
+    root = Path(root_dir) if root_dir else ds.measurement_dir.parent
+
+    corrected_dir = root / "BaSiC_corrected"
+    corrected_dir.mkdir(parents=True, exist_ok=True)
+
+    for chan in channels:
+        model_path = root / "BaSiC_model" / f"model_{chan}.pkl"
+        if not model_path.exists():
+            continue
+
+        with open(model_path, "rb") as f:
+            model = pickle.load(f)
+
+        paths = [
+            Path(metadata.iloc[i]["directory"]) / metadata.iloc[i][chan]
+            for i in range(len(metadata))
+        ]
+        paths = [p for p in paths if p.exists()]
+
+        for batch_start in range(0, len(paths), 50):
+            batch = paths[batch_start : batch_start + 50]
+            _basic_transform(batch, model, corrected_dir)
+
+    return ImageDataset(corrected_dir)
+
+
+def apply_basic(
+    ds: ImageDataset,
+    mode: str = "fit-transform",
+    n_image: int = 50,
+    working_size: int = 64,
+    enable_darkfield: bool = False,
+    root_dir: Optional[Union[str, Path]] = None,
+) -> ImageDataset:
+    """End-to-end BaSiC correction: fit, transform, or both.
+
+    Parameters
+    ----------
+    ds : ImageDataset
+        Input dataset.
+    mode : str
+        ``"fit"``, ``"transform"``, or ``"fit-transform"``.
+    n_image : int
+        Number of images for fitting.
+    working_size : int
+        BaSiC working size.
+    enable_darkfield : bool
+        Enable darkfield estimation.
+    root_dir : str or Path, optional
+        Root directory for output (defaults to ``ds.measurement_dir.parent``).
+
+    Returns
+    -------
+    ImageDataset
+        Dataset with corrected images (or the original if only fitting).
+    """
+    if mode in ("fit", "fit-transform"):
+        fit_models(
+            ds,
+            n_image=n_image,
+            working_size=working_size,
+            enable_darkfield=enable_darkfield,
+            root_dir=root_dir,
+        )
+
+    if mode in ("transform", "fit-transform"):
+        return transform_images(ds, root_dir=root_dir)
+
+    return ds

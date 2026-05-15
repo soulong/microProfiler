@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<LMSDataContainerHeader Version="2" ApplicationDescription="LMSIOManager" ApplicationVersion="1,9,5274,2">
+  <Element Name="G" Visibility="1" CopyOption="1" UniqueID="c913ad17-4cf9-11f1-aa59-b49691e21aed">
+    <Data>
+      <Collection ChildTypeTest="AcceptAll">
+        <ChildTypeList />
+      </Collection>
+    </Data>
+    <Memory Size="0" MemoryBlockID="" />
+    <Children>
+      <Reference File="..%5C2%5Cmetadata%5C2.xlcf" UUID="c913ad18-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File="..%5C3%5Cmetadata%5C3.xlcf" UUID="c913ad24-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File="..%5C4%5Cmetadata%5C4.xlcf" UUID="c913ad31-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File="..%5C5%5Cmetadata%5C5.xlcf" UUID="c913ad3d-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File="..%5C6%5Cmetadata%5C6.xlcf" UUID="c913ad49-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File="..%5C7%5Cmetadata%5C7.xlcf" UUID="c913ad50-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File="..%5C8%5Cmetadata%5C8.xlcf" UUID="c913ad57-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File="..%5C9%5Cmetadata%5C9.xlcf" UUID="c913ad5f-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File="..%5C10%5Cmetadata%5C10.xlcf" UUID="c913ad66-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File="..%5C11%5Cmetadata%5C11.xlcf" UUID="c913ad6d-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File="..%5C12%5Cmetadata%5C12.xlcf" UUID="c913ad74-4cf9-11f1-aa59-b49691e21aed" />
+    </Children>
+  </Element>
+</LMSDataContainerHeader>

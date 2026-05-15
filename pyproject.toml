@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "microProfiler"
+version = "0.2.0"
+description = "Microscopy image preprocessing, segmentation, and profiling pipeline"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [{name = "microProfiler Authors"}]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Image Processing",
+]
+keywords = ["microscopy", "image-analysis", "cellprofiler", "cellpose", "segmentation"]
+
+dependencies = [
+    "numpy",
+    "pandas",
+    "natsort",
+    "tqdm",
+    "cellpose",
+    "torch",
+    "jax",
+    "scikit-image",
+    "scipy",
+    "pydantic>=2.0",
+    "tifffile",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "ruff",
+]
+
+[project.urls]
+Homepage = "https://github.com/user/microProfiler"
+Repository = "https://github.com/user/microProfiler.git"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.setuptools.package-data]
+microProfiler = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: Pre-release smoke test (skipped in daily CI)",
+]

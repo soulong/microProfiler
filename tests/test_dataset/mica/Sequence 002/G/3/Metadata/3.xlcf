@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<LMSDataContainerHeader Version="2" ApplicationDescription="LMSIOManager" ApplicationVersion="1,9,5274,2">
+  <Element Name="3" Visibility="1" CopyOption="1" UniqueID="c913ad24-4cf9-11f1-aa59-b49691e21aed">
+    <Data>
+      <Collection ChildTypeTest="AcceptAll">
+        <ChildTypeList />
+      </Collection>
+    </Data>
+    <Memory Size="0" MemoryBlockID="" />
+    <Children>
+      <Reference File=".%5Cpos001.xlif" UUID="c913ad23-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File=".%5Cpos002.xlif" UUID="c913ad26-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File=".%5Cpos003.xlif" UUID="c913ad28-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File=".%5Cpos004.xlif" UUID="c913ad29-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File=".%5Cpos005.xlif" UUID="c913ad2b-4cf9-11f1-aa59-b49691e21aed" />
+      <Reference File=".%5Cpos006.xlif" UUID="c913ad2d-4cf9-11f1-aa59-b49691e21aed" />
+    </Children>
+  </Element>
+</LMSDataContainerHeader>
