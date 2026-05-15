@@ -1,4 +1,4 @@
-name: cellpose
+name: micro
 channels:
   - conda-forge
   - bioconda

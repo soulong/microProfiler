@@ -4,6 +4,7 @@ __pycache__/
 dist/
 build/
 .eggs/
+test_result/
 *.db
 *.sqlite
 *.sqlite3

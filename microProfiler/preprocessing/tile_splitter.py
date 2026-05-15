@@ -5,6 +5,7 @@ This is the LAST step in the preprocessing pipeline (when enabled).
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Optional, Union
 
@@ -12,6 +13,8 @@ from tqdm import tqdm
 
 from microProfiler.io.dataset import ImageDataset, UNIFIED_IMAGE_PATTERN
 from microProfiler.io.loaders import read_image, write_image
+
+log = logging.getLogger(__name__)
 
 
 def _split_single_image(
@@ -49,18 +52,22 @@ def _split_single_image(
 
     img = read_image(src)
     if img.ndim != 2:
+        log.warning("Skipping non-2D image (ndim=%d): %s", img.ndim, src.name)
         return 0
 
     h, w = img.shape
     tile_idx = 0
+    n_kept = 0
     for y in range(0, h, tile_h):
         for x in range(0, w, tile_w):
-            tile = img[y : y + tile_h, x : x + tile_w]
-            out_name = f"{well}_f{field}_z{stack}_t{timepoint}_ch{channel}_tile{tile_idx}.tiff"
-            write_image(output_dir / out_name, tile)
+            if y + tile_h <= h and x + tile_w <= w:
+                tile = img[y : y + tile_h, x : x + tile_w]
+                out_name = f"{well}_f{field}_z{stack}_t{timepoint}_ch{channel}_tile{tile_idx}.tiff"
+                write_image(output_dir / out_name, tile)
+                n_kept += 1
             tile_idx += 1
 
-    return tile_idx
+    return n_kept
 
 
 def tile_dataset(
@@ -91,6 +98,13 @@ def tile_dataset(
     root = Path(root_dir) if root_dir else ds.measurement_dir.parent
     tile_dir = root / f"tiles_{tile_w}x{tile_h}"
     tile_dir.mkdir(parents=True, exist_ok=True)
+
+    if ds.img_shape is not None and (ds.img_shape[0] < tile_h or ds.img_shape[1] < tile_w):
+        raise ValueError(
+            f"Images of size {ds.img_shape} are smaller than tile size "
+            f"({tile_w}×{tile_h}). All images must be at least as large "
+            "as the tile dimensions."
+        )
 
     metadata = ds.metadata
     all_paths = []

@@ -50,6 +50,9 @@ Input → Convert → BaSiC correction → Z-projection → Tile → Segment →
 ## Quick Start (CLI)
 
 ```bash
+# Run full pipeline using a YAML config file
+microprofiler run /path/to/Measurement\ 1 --config examples/pipeline_config.yml
+
 # Run full pipeline on Operetta format (with resize during conversion)
 microprofiler run /path/to/Measurement\ 1 --format operetta \
   --resize 0.5 \
@@ -68,6 +71,8 @@ microprofiler run /path/to/Sequence\ 002 --format mica \
 # Convert only (with optional resize and custom output name)
 microprofiler convert /path/to/Measurement\ 1 --format operetta --resize 0.5 --output-name myoutput
 ```
+
+A complete YAML config with all parameters is at [`examples/pipeline_config.yml`](examples/pipeline_config.yml).
 
 ## Library Usage
 

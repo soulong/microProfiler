@@ -29,7 +29,7 @@ def run_pipeline(
     log = setup_logging(log_file=log_file)
     log.info("Pipeline start — input: %s", cfg.input_dir)
 
-    root_dir = cfg.input_dir
+    root_dir = cfg.output_dir or cfg.input_dir
 
     # ── Step 0: Convert vendor format to unified naming ────────────────
     from microProfiler.preprocessing.converter import convert_measurement
@@ -40,7 +40,6 @@ def run_pipeline(
         input_dir=cfg.input_dir,
         vendor_format=cfg.format,
         root_dir=root_dir,
-        image_subdir=cfg.image_subdir,
         resize_factor=resize_factor,
         output_name=output_name,
     )
@@ -89,7 +88,7 @@ def run_pipeline(
         )
         log.info("Tiling applied: %dx%d", cfg.tile.tile_width, cfg.tile.tile_height)
 
-    # ── Step 5: Cellpose segmentation (optional) ───────────────────────
+    # ── Step 4: Cellpose segmentation (optional) ───────────────────────
     if cfg.segmentation:
         from microProfiler.segmentation.cellpose import segment_dataset
 
@@ -108,13 +107,13 @@ def run_pipeline(
         )
         log.info("Segmentation complete: object=%s", seg_cfg.object_name)
 
-    # ── Step 6: Profiling ─────────────────────────────────────────────
+    # ── Step 5: Profiling ─────────────────────────────────────────────
     profiling = cfg.profiling
     if profiling is None:
         log.info("No profiling requested — done.")
         return
 
-    db_path = cfg.input_dir / db_name
+    db_path = (cfg.output_dir or cfg.input_dir) / db_name
     intensity_cols = ds.intensity_colnames
 
     if profiling.image_channels is not None:

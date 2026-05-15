@@ -36,7 +36,6 @@ class PipelineConfig(BaseModel):
     input_dir: Path = Field(..., description="Path to raw measurement directory")
     output_dir: Optional[Path] = Field(None, description="Output directory for processed files")
     format: VendorFormat = Field(VendorFormat.operetta, description="Vendor format of input data")
-    image_subdir: str = Field("Images", description="Subdirectory containing raw images")
 
     convert: Optional[ConvertConfig] = Field(None, description="Converter configuration")
     resize: Optional[ResizeConfig] = Field(None, description="Resize step configuration")

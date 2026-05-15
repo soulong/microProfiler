@@ -171,6 +171,7 @@ def _glcm_all(
     props: tuple,
 ) -> np.ndarray:
     """GLCM features — flat array: [d0_p0, d0_p1, ..., dN_pM]."""
+    levels = min(levels, 256)  # uint8 quantization: max 256 levels
     img = intensity[..., channel] if intensity.ndim == 3 else intensity
     img = img.astype(float)
     mask = regionmask.astype(bool)

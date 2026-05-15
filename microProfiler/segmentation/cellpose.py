@@ -167,7 +167,8 @@ def segment_dataset(
     cellprob_threshold : float
         Cell probability threshold.
     gpu_batch_size : int
-        GPU batch size for Cellpose eval.
+        GPU patch batch size for Cellpose ``model.eval`` (number of patches
+        processed in parallel on the GPU, not the number of images).
 
     Returns
     -------
@@ -195,7 +196,12 @@ def segment_dataset(
         log.error("Channels not found in dataset: %s", missing)
         return ds
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
     normalize = normalize or {"percentile": [0.1, 99.9]}
 
     model = models.CellposeModel(device=device, pretrained_model=model_name)
@@ -268,6 +274,6 @@ def segment_dataset(
     )
     if summary["errors"]:
         logging.getLogger(__name__).warning("Segmentation errors: %s", summary["errors"])
-        
+
     ds.build_metadata()
     return ds

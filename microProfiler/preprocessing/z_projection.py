@@ -80,6 +80,9 @@ def z_project_dataset(
 
     if "stack" not in metadata.columns:
         raise ValueError("Metadata must contain a 'stack' column for Z-projection")
+    
+    if metadata["stack"].nunique() == 1:
+        raise ValueError("Metadata 'stack' column has only one unique value")
 
     # Compute group columns dynamically: all non-data columns except stack
     exclude = set(ds.intensity_colnames) | set(ds.mask_colnames) | {"stack", "directory"}

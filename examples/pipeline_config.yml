@@ -1,0 +1,131 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# microProfiler — YAML pipeline configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Path to raw measurement directory (required)
+input_dir: /path/to/measurement
+
+# Output directory for processed files (optional)
+output_dir: /path/to/output
+
+# Vendor format of input data: "operetta" or "mica" (default: operetta)
+format: operetta
+
+# ── Converter ────────────────────────────────────────────────────────────────
+convert:
+  # Output subdirectory name under input_dir (default: "unified")
+  output_name: unified
+
+  # Resize scale factor applied during conversion (0.1–4.0, default: 1.0)
+  resize_factor: 1.0
+
+# ── Resize ───────────────────────────────────────────────────────────────────
+resize:
+  # Scale factor for independent resize step (0.1–4.0, default: 1.0)
+  scale_factor: 0.5
+
+# ── BaSiC shading correction ─────────────────────────────────────────────────
+basic_correction:
+  # Mode: "fit", "transform", or "fit-transform" (default: fit-transform)
+  mode: fit-transform
+
+  # Number of images to use for fitting (default: 50)
+  n_image: 50
+
+  # Working size for BaSiC internal model (≥16, default: 64)
+  working_size: 64
+
+  # Enable darkfield estimation (default: false)
+  enable_darkfield: false
+
+# ── Z-projection ─────────────────────────────────────────────────────────────
+z_projection:
+  # Projection method: "max", "mean", or "min" (default: max)
+  method: max
+
+  # Delete original stack files after projection (default: false)
+  delete_original: false
+
+# ── Tile splitting ───────────────────────────────────────────────────────────
+tile:
+  # Tile width in pixels (≥64, default: 1024)
+  tile_width: 1024
+
+  # Tile height in pixels (≥64, default: 1024)
+  tile_height: 1024
+
+  # Delete original files after tiling (default: false)
+  delete_original: false
+
+# ── Segmentation ─────────────────────────────────────────────────────────────
+segmentation:
+  # Object name used for mask filenames (default: "cell")
+  object_name: cell
+
+  # First channel group — list of channel names to merge (default: first intensity channel)
+  chan1:
+    - ch1
+    - ch2
+
+  # Second channel group (optional) — list of channel names to merge
+  chan2:
+    - ch3
+
+  # Merge method for chan1: "mean", "max", or "min" (default: mean)
+  merge1: mean
+
+  # Merge method for chan2: "mean", "max", or "min" (default: mean)
+  merge2: mean
+
+  # Cellpose model name or path (default: "cpsam")
+  model_name: cpsam
+
+  # Object diameter in pixels (null = auto-detect)
+  diameter: 30
+
+  # Cellpose flow threshold (≥0, default: 0.4)
+  flow_threshold: 0.4
+
+  # Cell probability threshold (≥0, default: 0.0)
+  cellprob_threshold: 0.0
+
+# ── Profiling ────────────────────────────────────────────────────────────────
+profiling:
+  # Channels for whole-image profiling (null = all channels)
+  image_channels:
+    - ch1
+    - ch2
+
+  # Mask name for object-level profiling (requires segmentation step)
+  object_mask_name: cell
+
+  # Channels for per-object intensity statistics (null = all channels)
+  object_intensity_channels:
+    - ch1
+    - ch2
+
+  # Channels for radial intensity distribution
+  object_radial_channels:
+    - ch1
+
+  # Number of radial bins (≥1, default: 5)
+  object_radial_bins: 5
+
+  # Channels for granularity spectrum
+  object_granularity_channels:
+    - ch1
+
+  # Channels for GLCM texture analysis
+  object_glcm_channels:
+    - ch1
+
+  # GLCM pixel distances
+  object_glcm_distances:
+    - 1
+    - 2
+    - 3
+
+  # Channel pairs for Pearson correlation [[ch_a, ch_b], ...]
+  correlation_pairs:
+    - - ch1
+      - ch2

@@ -23,22 +23,27 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="microProfiler",
         description="Microscopy image preprocessing, segmentation, and profiling pipeline",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
     # ── run ──────────────────────────────────────────────────────────────
-    run_parser = sub.add_parser("run", help="Run the full analysis pipeline")
+    run_parser = sub.add_parser(
+        "run", help="Run the full analysis pipeline",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     run_parser.add_argument("input_dir", type=Path, help="Path to raw measurement directory")
     run_parser.add_argument("--config", "-c", type=Path, default=None, help="YAML config file")
     run_parser.add_argument("--output", "-o", type=Path, default=None, help="Output directory")
-    run_parser.add_argument("--format", choices=["operetta", "mica"], default="operetta")
+    run_parser.add_argument("--format", choices=["operetta", "mica"], default="operetta",
+                            help="Vendor format of input data")
     run_parser.add_argument(
         "--resize", type=float, default=None,
         help="Resize scale factor (applied during conversion)",
     )
     run_parser.add_argument(
         "--output-name", type=str, default=None,
-        help="Converter output subdirectory name",
+        help="Converter output subdirectory name (default: unified)",
     )
     run_parser.add_argument(
         "--basic", type=str, default=None,
@@ -63,7 +68,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Channel(s) for segmentation C1",
     )
     run_parser.add_argument(
-        "--profile-image", action="store_true",
+        "--profile-image", action="store_true", default=False,
         help="Enable image-level profiling",
     )
     run_parser.add_argument(
@@ -77,9 +82,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # ── convert ─────────────────────────────────────────────────────────
-    conv_parser = sub.add_parser("convert", help="Convert vendor format to unified naming")
+    conv_parser = sub.add_parser(
+        "convert", help="Convert vendor format to unified naming",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     conv_parser.add_argument("input_dir", type=Path, help="Path to raw measurement directory")
-    conv_parser.add_argument("--format", choices=["operetta", "mica"], required=True)
+    conv_parser.add_argument("--format", choices=["operetta", "mica"], required=True,
+                            help="Vendor format of input data")
     conv_parser.add_argument(
         "--output-name", type=str, default=None,
         help="Output subdirectory name (default: unified)",
@@ -131,7 +140,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.output:
             cfg.output_dir = args.output
         if args.resize is not None:
-            cfg.convert = {"resize_factor": args.resize}
+            cfg.resize = {"scale_factor": args.resize}
         if args.output_name:
             conv = cfg.convert.model_dump() if cfg.convert else {}
             conv["output_name"] = args.output_name
@@ -159,10 +168,10 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 prof = prof or {}
             if args.profile_image:
-                prof["image_channels"] = []
+                prof["image_channels"] = None
+            if args.profile_object:
+                prof["object_mask_name"] = args.profile_object
             cfg.profiling = prof
-        if args.profile_object:
-            cfg.profiling["object_mask_name"] = args.profile_object
 
         run_pipeline(cfg, db_name=args.db, log_file=args.log_file)
         return 0

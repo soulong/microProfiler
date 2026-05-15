@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "microProfiler"
-version = "0.2.0"
+version = "0.8.0"
 description = "Microscopy image preprocessing, segmentation, and profiling pipeline"
 readme = "README.md"
 license = {text = "MIT"}
@@ -43,8 +43,11 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/user/microProfiler"
-Repository = "https://github.com/user/microProfiler.git"
+Homepage = "https://github.com/soulong/microProfiler"
+Repository = "https://github.com/soulong/microProfiler.git"
+
+[project.scripts]
+microprofiler = "microProfiler.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

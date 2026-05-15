@@ -12,13 +12,13 @@ from microProfiler.profiling.image_profiler import profile_images
 from microProfiler.profiling.object_profiler import profile_objects
 
 # ── Configuration ────────────────────────────────────────────────────────
-DATA_DIR = Path(r"C:\Users\haohe\GitHub\microProfiler\tests\test_dataset\mica\Sequence 002")
+DATA_DIR = Path(r"C:\Users\haohe\GitHub\microProfiler\tests\test_result\mica\Sequence 002")
 VENDOR_FORMAT = "mica"
 
-DATA_DIR = Path(r"C:\Users\haohe\GitHub\microProfiler\tests\test_dataset\operetta\2026-05-01_plate_Measurement 1")
+DATA_DIR = Path(r"C:\Users\haohe\GitHub\microProfiler\tests\test_result\operetta\2026-05-01_plate_Measurement 1")
 VENDOR_FORMAT = "operetta"
 
-OUTPUT_DB = DATA_DIR / "results.db"
+OUTPUT_DB = DATA_DIR / "result.db"
 
 # ── Step 1: Convert vendor format to unified naming ─────────────────────
 print("Converting vendor format → unified naming")
@@ -31,6 +31,7 @@ print(ds)
 
 # subset to rows for quick testing
 ds.filter_metadata("well", r"B[2]").filter_metadata("field", r"[13]")
+# ds.filter_metadata("tile", r"0")
 print(ds)
 
 # ── Step 3: Z-projection (collapse stacks) ──────────────────────────────

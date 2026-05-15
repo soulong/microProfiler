@@ -119,27 +119,40 @@ def _convert_operetta_file(
     return dst
 
 
-def _find_mica_root(path: Path) -> Path:
-    """Auto-detect MICA root directory.
+def _find_mica_root(path: Path, _max_depth: int = 10) -> Path:
+    """Auto-detect MICA root directory by walking up the tree.
 
-    MICA structure: ``{row}/{col}/PosNNN.ext``.
+    MICA structure: ``{row}/{col}/PosNNN.ext`` where row directories are
+    single letters (``A``, ``B``, etc.).  Walks up parent directories
+    until a directory with single-letter subdirectories is found.
 
     Parameters
     ----------
     path : Path
         Path to a directory within the MICA tree.
+    _max_depth : int
+        Maximum levels to walk up (prevents infinite loops).
 
     Returns
     -------
     Path
         The detected root directory.
     """
-    if path.is_dir():
-        subdirs = [x.name for x in path.iterdir() if x.is_dir() and x.name != "Metadata"]
-        row_dirs = [s for s in subdirs if len(s) == 1 and s.isalpha()]
-        if row_dirs:
-            return path
-    return path.parent
+    current = path
+    for _ in range(_max_depth):
+        if current.is_dir():
+            subdirs = [
+                x.name for x in current.iterdir()
+                if x.is_dir() and x.name != "Metadata"
+            ]
+            row_dirs = [s for s in subdirs if len(s) == 1 and s.isalpha()]
+            if row_dirs:
+                return current
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+    return path
 
 
 def _convert_mica_file(
@@ -212,7 +225,6 @@ def convert_measurement(
     input_dir: Union[str, Path],
     vendor_format: str = "operetta",
     root_dir: Optional[Union[str, Path]] = None,
-    image_subdir: str = "Images",
     resize_factor: float = 1.0,
     output_name: str = "unified",
 ) -> List[Path]:
@@ -226,8 +238,6 @@ def convert_measurement(
         ``"operetta"`` or ``"mica"``.
     root_dir : str or Path, optional
         Root directory for output (defaults to ``input_dir``).
-    image_subdir : str
-        For Operetta, the subdirectory containing raw images (default ``Images``).
     resize_factor : float
         Resize scale factor (1.0 = no resize).
     output_name : str
@@ -246,7 +256,7 @@ def convert_measurement(
     converted: List[Path] = []
 
     if vendor_format == "operetta":
-        img_dir = input_dir / image_subdir
+        img_dir = input_dir / "Images"
         if not img_dir.is_dir():
             raise NotADirectoryError(
                 f"Operetta images subdirectory not found: {img_dir}"
