@@ -145,7 +145,7 @@ Convert metadata to CellProfiler-compatible CSV format. Writes to file if `out_p
 
 ### `microProfiler.preprocessing.converter`
 
-#### `convert_measurement(input_dir, vendor_format, root_dir=None, image_subdir="Images", resize_factor=1.0, output_name="unified") -> List[Path]`
+#### `convert_measurement(input_dir, vendor_format, root_dir=None, resize_factor=1.0, output_name="image", delete_original=False) -> ImageDataset`
 
 Convert a vendor-format measurement directory to unified naming. Supports `"operetta"` and `"mica"`. Optionally resizes images during conversion via `resize_factor`. Writes to `root_dir / output_name`.
 
@@ -154,11 +154,11 @@ Convert a vendor-format measurement directory to unified naming. Supports `"oper
 | `input_dir` | `str` or `Path` | — | Raw measurement directory containing vendor-format files. |
 | `vendor_format` | `str` | `"operetta"` | `"operetta"` or `"mica"`. |
 | `root_dir` | `str` or `Path` | `input_dir` | Root directory for output. |
-| `image_subdir` | `str` | `"Images"` | Subdirectory containing raw images (Operetta). |
 | `resize_factor` | `float` | `1.0` | Resize scale factor applied during conversion write. `1.0` = no resize. |
-| `output_name` | `str` | `"unified"` | Output subdirectory name under `root_dir`. |
+| `output_name` | `str` | `"image"` | Output subdirectory name under `root_dir`. |
+| `delete_original` | `bool` | `False` | Delete original vendor files after successful conversion. |
 
-**Returns:** `list[Path]` — paths to all converted files.
+**Returns:** `ImageDataset` — dataset pointing to the converted files.
 
 **Vendor patterns:**
 
@@ -171,15 +171,17 @@ Convert a vendor-format measurement directory to unified naming. Supports `"oper
 
 ### `microProfiler.preprocessing.resizer`
 
-#### `resize_dataset(ds: ImageDataset, scale_factor: float, root_dir=None) -> ImageDataset`
+#### `resize_dataset(ds: ImageDataset, scale_factor: float, root_dir=None, inplace=True, delete_original=False) -> ImageDataset`
 
-Resize all images in a dataset by a scale factor using spline interpolation (order 1). Creates a `resized_{scale}/` subdirectory under `root_dir`.
+Resize all images in a dataset by a scale factor using spline interpolation (order 1). When `inplace=True` (default), resized images replace originals in the dataset directory via temp→swap atomicity. When `inplace=False`, creates a `resized_{scale}/` subdirectory under `root_dir`.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `ds` | `ImageDataset` | — | Dataset whose images should be resized. |
 | `scale_factor` | `float` | `1.0` | Resize factor (e.g. `0.5` halves both dimensions). |
 | `root_dir` | `str` or `Path` | `ds.measurement_dir.parent` | Root directory for output. |
+| `inplace` | `bool` | `True` | Resize in-place (overwrite source directory). |
+| `delete_original` | `bool` | `False` | Delete original files after resizing (only when not inplace). |
 
 **Returns:** `ImageDataset` — new dataset pointing to the resized files.
 
@@ -187,16 +189,17 @@ Resize all images in a dataset by a scale factor using spline interpolation (ord
 
 ### `microProfiler.preprocessing.z_projection`
 
-#### `z_project_dataset(ds: ImageDataset, method: str, delete_original: bool, root_dir=None) -> ImageDataset`
+#### `z_project_dataset(ds: ImageDataset, method: str, delete_original=False, root_dir=None, inplace=True) -> ImageDataset`
 
-Collapse the Z dimension using `"max"`, `"mean"`, or `"min"` projection. Group columns are dynamically derived from metadata (all non-data columns except `stack`). Creates a `zproject_{method}/` subdirectory under `root_dir`.
+Collapse the Z dimension using `"max"`, `"mean"`, or `"min"` projection. Group columns are dynamically derived from metadata (all non-data columns except `stack`). When `inplace=True` (default), projected images replace Z-stacks in the dataset directory via temp→swap atomicity. When `inplace=False`, creates a `zproject_{method}/` subdirectory under `root_dir`.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `ds` | `ImageDataset` | — | Input dataset with a `stack` column. |
 | `method` | `str` | `"max"` | `"max"`, `"mean"`, or `"min"`. |
-| `delete_original` | `bool` | `False` | Delete original Z-stack files after projection. |
+| `delete_original` | `bool` | `False` | Delete original Z-stack files after projection (only when not inplace). |
 | `root_dir` | `str` or `Path` | `ds.measurement_dir.parent` | Root directory for output. |
+| `inplace` | `bool` | `True` | Project in-place (replace source directory). |
 
 **Returns:** `ImageDataset` — new dataset with projected images.
 
@@ -204,17 +207,18 @@ Collapse the Z dimension using `"max"`, `"mean"`, or `"min"` projection. Group c
 
 ### `microProfiler.preprocessing.tile_splitter`
 
-#### `tile_dataset(ds: ImageDataset, tile_w: int, tile_h: int, delete_original: bool, root_dir=None) -> ImageDataset`
+#### `tile_dataset(ds: ImageDataset, tile_w: int, tile_h: int, delete_original=False, root_dir=None, inplace=True) -> ImageDataset`
 
-Split all images into non-overlapping tiles. Each source image is split into `ceil(H / tile_h) * ceil(W / tile_w)` tiles. The returned dataset includes a `tile` column (integer index). Creates a `tiles_{W}x{H}/` subdirectory under `root_dir`.
+Split all images into non-overlapping tiles. Each source image is split into `ceil(H / tile_h) * ceil(W / tile_w)` tiles. The returned dataset includes a `tile` column (integer index). When `inplace=True` (default), tiles replace originals in the dataset directory via temp→swap atomicity. When `inplace=False`, creates a `tiles_{W}x{H}/` subdirectory under `root_dir`.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `ds` | `ImageDataset` | — | Input dataset. |
 | `tile_w` | `int` | `1024` | Tile width in pixels. |
 | `tile_h` | `int` | `1024` | Tile height in pixels. |
-| `delete_original` | `bool` | `False` | Delete original files after tiling. |
+| `delete_original` | `bool` | `False` | Delete original files after tiling (only when not inplace). |
 | `root_dir` | `str` or `Path` | `ds.measurement_dir.parent` | Root directory for output. |
+| `inplace` | `bool` | `True` | Tile in-place (replace source directory). |
 
 **Returns:** `ImageDataset` — new dataset with tiled images.
 
@@ -237,19 +241,20 @@ Fit BaSiC models for specified channels. Saves pickled models and flatfield/dark
 
 **Returns:** `Path` — directory containing the saved model files.
 
-#### `transform_images(ds, channels=None, root_dir=None) -> ImageDataset`
+#### `transform_images(ds, channels=None, root_dir=None, inplace=True) -> ImageDataset`
 
-Apply fitted BaSiC models to correct images. Models are loaded from `root_dir/BaSiC_model/`. Corrected images are written to `root_dir/BaSiC_corrected/`.
+Apply fitted BaSiC models to correct images. Models are loaded from `root_dir/BaSiC_model/`. When `inplace=True` (default), corrected images replace originals in the dataset directory via temp→swap atomicity. When `inplace=False`, corrected images are written to `root_dir/BaSiC_corrected/`.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `ds` | `ImageDataset` | — | Dataset with saved BaSiC models. |
 | `channels` | `list[str]` | all intensity cols | Channels to transform. |
 | `root_dir` | `str` or `Path` | `ds.measurement_dir.parent` | Root directory (same as used during fit). |
+| `inplace` | `bool` | `True` | Correct in-place (replace source directory). |
 
 **Returns:** `ImageDataset` — new dataset with corrected images.
 
-#### `apply_basic(ds, mode="fit-transform", n_image=50, working_size=64, enable_darkfield=False, root_dir=None) -> ImageDataset`
+#### `apply_basic(ds, mode="fit-transform", n_image=50, working_size=64, enable_darkfield=False, root_dir=None, inplace=True) -> ImageDataset`
 
 End-to-end BaSiC correction: fit, transform, or both.
 
@@ -261,6 +266,7 @@ End-to-end BaSiC correction: fit, transform, or both.
 | `working_size` | `int` | `64` | BaSiC working size. |
 | `enable_darkfield` | `bool` | `False` | Enable darkfield estimation. |
 | `root_dir` | `str` or `Path` | `ds.measurement_dir.parent` | Root directory for output. |
+| `inplace` | `bool` | `True` | Correct in-place (replace source directory). |
 
 **Returns:** `ImageDataset` — dataset with corrected images (or the original if only fitting).
 

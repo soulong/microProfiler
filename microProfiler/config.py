@@ -24,8 +24,11 @@ class ProjectionMethod(str, Enum):
 class ConvertConfig(BaseModel):
     """Converter configuration."""
 
-    output_name: str = Field("unified", description="Output directory name under root")
-    resize_factor: float = Field(1.0, ge=0.1, le=4.0, description="Resize scale factor")
+    output_name: str = Field("image", description="Output directory name under root")
+    resize_factor: float = Field(1.0, ge=0.1, le=4.0, description="Resize scale factor during conversion")
+    delete_original: bool = Field(
+        False, description="Delete original vendor files after conversion",
+    )
 
 
 class PipelineConfig(BaseModel):
@@ -55,6 +58,7 @@ class PipelineConfig(BaseModel):
 
 class ResizeConfig(BaseModel):
     scale_factor: float = Field(1.0, ge=0.1, le=4.0, description="Resize scale factor")
+    inplace: bool = Field(True, description="Resize images in-place (overwrite source directory)")
 
 
 class BasicConfig(BaseModel):
@@ -62,17 +66,18 @@ class BasicConfig(BaseModel):
     n_image: int = Field(50, ge=1, description="Number of images for fitting")
     working_size: int = Field(64, ge=16, description="Working size for BaSiC model")
     enable_darkfield: bool = Field(False, description="Enable darkfield estimation")
+    inplace: bool = Field(True, description="Correct images in-place (overwrite source directory)")
 
 
 class ZProjectionConfig(BaseModel):
     method: ProjectionMethod = Field(ProjectionMethod.max, description="Projection method")
-    delete_original: bool = Field(False, description="Delete original files after projection")
+    inplace: bool = Field(True, description="Project in-place (replace source directory)")
 
 
 class TileConfig(BaseModel):
     tile_width: int = Field(1024, ge=64, description="Tile width in pixels")
     tile_height: int = Field(1024, ge=64, description="Tile height in pixels")
-    delete_original: bool = Field(False, description="Delete original files after tiling")
+    inplace: bool = Field(True, description="Tile in-place (replace source directory)")
 
 
 class SegmentationConfig(BaseModel):

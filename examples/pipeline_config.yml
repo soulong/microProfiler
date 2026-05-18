@@ -13,16 +13,22 @@ format: operetta
 
 # ── Converter ────────────────────────────────────────────────────────────────
 convert:
-  # Output subdirectory name under input_dir (default: "unified")
-  output_name: unified
+  # Output subdirectory name under input_dir (default: "image")
+  output_name: image
 
-  # Resize scale factor applied during conversion (0.1–4.0, default: 1.0)
+  # Resize scale factor applied during conversion write (0.1–4.0, default: 1.0)
   resize_factor: 1.0
 
-# ── Resize ───────────────────────────────────────────────────────────────────
+  # Delete original vendor files after successful conversion (default: false)
+  delete_original: false
+
+# ── Resize (standalone step) ─────────────────────────────────────────────────
 resize:
-  # Scale factor for independent resize step (0.1–4.0, default: 1.0)
+  # Scale factor for independent resize step after conversion (0.1–4.0, default: 1.0)
   scale_factor: 0.5
+
+  # Resize in-place (overwrite source directory, default: true)
+  inplace: true
 
 # ── BaSiC shading correction ─────────────────────────────────────────────────
 basic_correction:
@@ -38,13 +44,16 @@ basic_correction:
   # Enable darkfield estimation (default: false)
   enable_darkfield: false
 
+  # Correct images in-place (overwrite source directory, default: true)
+  inplace: true
+
 # ── Z-projection ─────────────────────────────────────────────────────────────
 z_projection:
   # Projection method: "max", "mean", or "min" (default: max)
   method: max
 
-  # Delete original stack files after projection (default: false)
-  delete_original: false
+  # Project in-place (replace source directory, default: true)
+  inplace: true
 
 # ── Tile splitting ───────────────────────────────────────────────────────────
 tile:
@@ -54,8 +63,8 @@ tile:
   # Tile height in pixels (≥64, default: 1024)
   tile_height: 1024
 
-  # Delete original files after tiling (default: false)
-  delete_original: false
+  # Tile in-place (replace source directory, default: true)
+  inplace: true
 
 # ── Segmentation ─────────────────────────────────────────────────────────────
 segmentation:

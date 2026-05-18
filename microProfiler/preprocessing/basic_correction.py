@@ -12,9 +12,11 @@ from pathlib import Path
 from typing import List, Optional, Union
 
 import numpy as np
+import pandas as pd
 
 from microProfiler.io.dataset import ImageDataset
 from microProfiler.io.loaders import read_image, write_image
+from microProfiler.preprocessing._swap import TempSwap
 from microProfiler.preprocessing.basic.basic import BaSiC
 
 
@@ -170,6 +172,7 @@ def transform_images(
     ds: ImageDataset,
     channels: Optional[List[str]] = None,
     root_dir: Optional[Union[str, Path]] = None,
+    inplace: bool = True,
 ) -> ImageDataset:
     """Apply fitted BaSiC models to correct images.
 
@@ -181,6 +184,8 @@ def transform_images(
         Channels to transform.  Defaults to all intensity channels.
     root_dir : str or Path, optional
         Root directory for output (defaults to ``ds.measurement_dir.parent``).
+    inplace : bool
+        If True, write corrected images into the dataset directory (in-place).
 
     Returns
     -------
@@ -191,28 +196,65 @@ def transform_images(
     metadata = ds.metadata
     root = Path(root_dir) if root_dir else ds.measurement_dir.parent
 
-    corrected_dir = root / "BaSiC_corrected"
-    corrected_dir.mkdir(parents=True, exist_ok=True)
+    if inplace:
+        target_dir = ds.measurement_dir
+    else:
+        target_dir = root / "BaSiC_corrected"
+        target_dir.mkdir(parents=True, exist_ok=True)
 
+    with TempSwap(target_dir, "basic") as swap:
+        for chan in channels:
+            model_path = root / "BaSiC_model" / f"model_{chan}.pkl"
+            if not model_path.exists():
+                continue
+
+            with open(model_path, "rb") as f:
+                model = pickle.load(f)
+
+            paths = [
+                Path(metadata.iloc[i]["directory"]) / metadata.iloc[i][chan]
+                for i in range(len(metadata))
+            ]
+            paths = [p for p in paths if p.exists()]
+
+            for batch_start in range(0, len(paths), 50):
+                batch = paths[batch_start : batch_start + 50]
+                _basic_transform(batch, model, swap.temp_dir)
+
+            if inplace:
+                swap.mark_originals(paths)
+
+    return ImageDataset(target_dir)
+
+
+def _validate_shapes(ds: ImageDataset, n_image: int = 50) -> None:
+    """Pre-validate that all channel images have consistent shapes.
+
+    Raises ``ValueError`` if sampled images across channels have
+    differing dimensions.
+    """
+    channels = ds.intensity_colnames
+    metadata = ds.metadata
+    sample_paths: List[Path] = []
     for chan in channels:
-        model_path = root / "BaSiC_model" / f"model_{chan}.pkl"
-        if not model_path.exists():
-            continue
-
-        with open(model_path, "rb") as f:
-            model = pickle.load(f)
-
         paths = [
             Path(metadata.iloc[i]["directory"]) / metadata.iloc[i][chan]
             for i in range(len(metadata))
+            if pd.notna(metadata.iloc[i].get(chan))
         ]
         paths = [p for p in paths if p.exists()]
-
-        for batch_start in range(0, len(paths), 50):
-            batch = paths[batch_start : batch_start + 50]
-            _basic_transform(batch, model, corrected_dir)
-
-    return ImageDataset(corrected_dir)
+        if paths:
+            sample_paths.extend(paths[:n_image])
+    if sample_paths:
+        first_shape = read_image(sample_paths[0]).shape
+        for p in sample_paths[1:]:
+            img = read_image(p)
+            if img.shape != first_shape:
+                raise ValueError(
+                    f"BaSiC requires uniform image shapes across all channels. "
+                    f"Got {first_shape} and {img.shape} for {p.name}. "
+                    "This is checked before any processing begins."
+                )
 
 
 def apply_basic(
@@ -222,6 +264,7 @@ def apply_basic(
     working_size: int = 64,
     enable_darkfield: bool = False,
     root_dir: Optional[Union[str, Path]] = None,
+    inplace: bool = True,
 ) -> ImageDataset:
     """End-to-end BaSiC correction: fit, transform, or both.
 
@@ -239,6 +282,8 @@ def apply_basic(
         Enable darkfield estimation.
     root_dir : str or Path, optional
         Root directory for output (defaults to ``ds.measurement_dir.parent``).
+    inplace : bool
+        If True, write corrected images into the dataset directory (in-place).
 
     Returns
     -------
@@ -246,6 +291,8 @@ def apply_basic(
         Dataset with corrected images (or the original if only fitting).
     """
     if mode in ("fit", "fit-transform"):
+        # Fail-fast: validate image shape consistency before any I/O
+        _validate_shapes(ds, n_image)
         fit_models(
             ds,
             n_image=n_image,
@@ -255,6 +302,6 @@ def apply_basic(
         )
 
     if mode in ("transform", "fit-transform"):
-        return transform_images(ds, root_dir=root_dir)
+        return transform_images(ds, root_dir=root_dir, inplace=inplace)
 
     return ds

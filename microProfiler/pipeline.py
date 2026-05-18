@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Optional
 from microProfiler.config import PipelineConfig
 from microProfiler.logging_utils import setup_logging
-from microProfiler.io.dataset import ImageDataset
 
 
 def run_pipeline(
@@ -15,7 +14,7 @@ def run_pipeline(
     """Run the full microProfiler pipeline.
 
     Executes the configured pipeline steps in order:
-    Convert[+resize] → BaSiC → Z-projection → Tile → Segment → Profile.
+    Convert[+resize] → Resize → BaSiC → Z-projection → Tile → Segment → Profile.
 
     Parameters
     ----------
@@ -34,22 +33,33 @@ def run_pipeline(
     # ── Step 0: Convert vendor format to unified naming ────────────────
     from microProfiler.preprocessing.converter import convert_measurement
 
-    output_name = cfg.convert.output_name if cfg.convert else "unified"
-    resize_factor = cfg.resize.scale_factor if cfg.resize else 1.0
-    convert_measurement(
+    output_name = cfg.convert.output_name if cfg.convert else "image"
+    conv_resize = cfg.convert.resize_factor if cfg.convert else 1.0
+    convert_delete_original = cfg.convert.delete_original if cfg.convert else False
+    ds = convert_measurement(
         input_dir=cfg.input_dir,
         vendor_format=cfg.format,
         root_dir=root_dir,
-        resize_factor=resize_factor,
+        resize_factor=conv_resize,
         output_name=output_name,
+        delete_original=convert_delete_original,
     )
     log.info("Conversion complete → %s/%s", root_dir, output_name)
-
-    # ── Load dataset from unified directory ─────────────────────────────
-    ds = ImageDataset(root_dir / output_name)
     log.info("Dataset loaded: %d rows, channels=%s", len(ds), ds.intensity_colnames)
 
-    # ── Step 1: BaSiC shading correction (optional) ────────────────────
+    # ── Step 1: Standalone resize (optional) ──────────────────────────
+    if cfg.resize and cfg.resize.scale_factor != 1.0:
+        from microProfiler.preprocessing.resizer import resize_dataset
+
+        ds = resize_dataset(
+            ds,
+            scale_factor=cfg.resize.scale_factor,
+            root_dir=root_dir,
+            inplace=cfg.resize.inplace,
+        )
+        log.info("Resize applied: factor=%s, inplace=%s", cfg.resize.scale_factor, cfg.resize.inplace)
+
+    # ── Step 2: BaSiC shading correction (optional) ────────────────────
     if cfg.basic_correction:
         from microProfiler.preprocessing.basic_correction import apply_basic
 
@@ -60,22 +70,23 @@ def run_pipeline(
             working_size=cfg.basic_correction.working_size,
             enable_darkfield=cfg.basic_correction.enable_darkfield,
             root_dir=root_dir,
+            inplace=cfg.basic_correction.inplace,
         )
         log.info("BaSiC correction applied: mode=%s", cfg.basic_correction.mode)
 
-    # ── Step 2: Z-projection (optional) ────────────────────────────────
+    # ── Step 3: Z-projection (optional) ────────────────────────────────
     if cfg.z_projection:
         from microProfiler.preprocessing.z_projection import z_project_dataset
 
         ds = z_project_dataset(
             ds,
             method=cfg.z_projection.method,
-            delete_original=cfg.z_projection.delete_original,
             root_dir=root_dir,
+            inplace=cfg.z_projection.inplace,
         )
         log.info("Z-projection applied: method=%s", cfg.z_projection.method)
 
-    # ── Step 3: Tile splitting (optional) ──────────────────────────────
+    # ── Step 4: Tile splitting (optional) ──────────────────────────────
     if cfg.tile:
         from microProfiler.preprocessing.tile_splitter import tile_dataset
 
@@ -83,12 +94,12 @@ def run_pipeline(
             ds,
             tile_w=cfg.tile.tile_width,
             tile_h=cfg.tile.tile_height,
-            delete_original=cfg.tile.delete_original,
             root_dir=root_dir,
+            inplace=cfg.tile.inplace,
         )
         log.info("Tiling applied: %dx%d", cfg.tile.tile_width, cfg.tile.tile_height)
 
-    # ── Step 4: Cellpose segmentation (optional) ───────────────────────
+    # ── Step 5: Cellpose segmentation (optional) ───────────────────────
     if cfg.segmentation:
         from microProfiler.segmentation.cellpose import segment_dataset
 
@@ -107,7 +118,7 @@ def run_pipeline(
         )
         log.info("Segmentation complete: object=%s", seg_cfg.object_name)
 
-    # ── Step 5: Profiling ─────────────────────────────────────────────
+    # ── Step 6: Profiling ─────────────────────────────────────────────
     profiling = cfg.profiling
     if profiling is None:
         log.info("No profiling requested — done.")

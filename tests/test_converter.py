@@ -5,6 +5,7 @@ import re
 import numpy as np
 import pytest
 
+from microProfiler.io.dataset import ImageDataset
 from microProfiler.preprocessing.converter import (
     OPERETTA_PATTERN,
     _build_unified_name,
@@ -71,56 +72,58 @@ class TestResizeIfNeeded:
 
 class TestConvertMeasurement:
     def test_convert_operetta_end_to_end(self, operetta_test_dir, temp_dir):
-        out = temp_dir / "unified"
-        results = convert_measurement(
+        out = temp_dir / "image"
+        ds = convert_measurement(
             input_dir=operetta_test_dir,
             vendor_format="operetta",
             root_dir=temp_dir,
         )
-        assert len(results) > 0
+        assert isinstance(ds, ImageDataset)
+        assert len(ds) > 0
         assert out.exists()
-        assert all(p.exists() for p in results)
 
     def test_converted_filenames_format(self, operetta_test_dir, temp_dir):
-        results = convert_measurement(
+        ds = convert_measurement(
             input_dir=operetta_test_dir,
             vendor_format="operetta",
             root_dir=temp_dir,
             output_name="test_converted",
         )
         pattern = re.compile(r"[A-Z]\d+_f\d+_z\d+_t\d+_ch\d+\.tiff")
-        for p in results:
-            assert pattern.match(p.name), f"Bad filename: {p.name}"
+        for _, row in ds.metadata.iterrows():
+            for ch in ds.intensity_colnames:
+                assert pattern.match(row[ch]), f"Bad filename: {row[ch]}"
 
     def test_operetta_well_parsing(self, operetta_test_dir, temp_dir):
-        results = convert_measurement(
+        ds = convert_measurement(
             input_dir=operetta_test_dir,
             vendor_format="operetta",
             root_dir=temp_dir,
         )
-        names = [p.name for p in results]
+        filenames = []
+        for _, row in ds.metadata.iterrows():
+            for ch in ds.intensity_colnames:
+                filenames.append(row[ch])
         # r02c02 -> B2, r04c02 -> D2
-        assert any("B2" in n for n in names)
-        assert any("D2" in n for n in names)
+        assert any("B2" in n for n in filenames)
+        assert any("D2" in n for n in filenames)
 
     def test_convert_operetta_with_resize(self, operetta_test_dir, temp_dir):
-        results = convert_measurement(
+        ds = convert_measurement(
             input_dir=operetta_test_dir,
             vendor_format="operetta",
             root_dir=temp_dir,
             resize_factor=0.5,
             output_name="resized",
         )
-        assert len(results) > 0
-        for p in results:
-            assert p.exists()
+        assert len(ds) > 0
 
     def test_unknown_format_raises(self, temp_dir):
         with pytest.raises(ValueError, match="Unknown vendor format"):
             convert_measurement(temp_dir, vendor_format="invalid")
 
     def test_empty_dir_raises(self, temp_dir):
-        with pytest.raises((NotADirectoryError, RuntimeError)):
+        with pytest.raises((NotADirectoryError, RuntimeError, FileNotFoundError)):
             convert_measurement(temp_dir, vendor_format="operetta")
 
 

@@ -22,20 +22,21 @@ OUTPUT_DB = DATA_DIR / "result.db"
 
 # ── Step 1: Convert vendor format to unified naming ─────────────────────
 print("Converting vendor format → unified naming")
-converted_filepath = convert_measurement(DATA_DIR, vendor_format=VENDOR_FORMAT)
-print(converted_filepath[0])
+ds = convert_measurement(DATA_DIR, vendor_format=VENDOR_FORMAT, delete_original=False)
+print(ds)
+print(ds.metadata)
 
 # ── Step 2: Load the converted dataset ──────────────────────────────────
 ds = ImageDataset(DATA_DIR / "unified")
 print(ds)
 
 # subset to rows for quick testing
-ds.filter_metadata("well", r"B[2]").filter_metadata("field", r"[13]")
+# ds.filter_metadata("well", r"B[2]").filter_metadata("field", r"[13]")
 # ds.filter_metadata("tile", r"0")
-print(ds)
+# print(ds)
 
 # ── Step 3: Z-projection (collapse stacks) ──────────────────────────────
-ds = z_project_dataset(ds, method="max")
+ds = z_project_dataset(ds, method="max", inplace=True)
 print(ds)
 
 # ── Step 4: Tile splitting ──────────────────────────────────────────────

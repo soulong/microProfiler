@@ -13,6 +13,7 @@ from tqdm import tqdm
 
 from microProfiler.io.dataset import ImageDataset, UNIFIED_IMAGE_PATTERN
 from microProfiler.io.loaders import read_image, write_image
+from microProfiler.preprocessing._swap import TempSwap
 
 log = logging.getLogger(__name__)
 
@@ -76,6 +77,7 @@ def tile_dataset(
     tile_h: int = 1024,
     delete_original: bool = False,
     root_dir: Optional[Union[str, Path]] = None,
+    inplace: bool = True,
 ) -> ImageDataset:
     """Split all images in a dataset into tiles.
 
@@ -87,8 +89,12 @@ def tile_dataset(
         Tile width in pixels.
     tile_h : int
         Tile height in pixels.
+    delete_original : bool
+        Delete original files after tiling (only when not inplace).
     root_dir : str or Path, optional
         Root directory for output (defaults to ``ds.measurement_dir.parent``).
+    inplace : bool
+        If True, write tiles into the dataset directory (in-place).
 
     Returns
     -------
@@ -96,12 +102,30 @@ def tile_dataset(
         New dataset with tiled images.
     """
     root = Path(root_dir) if root_dir else ds.measurement_dir.parent
-    tile_dir = root / f"tiles_{tile_w}x{tile_h}"
-    tile_dir.mkdir(parents=True, exist_ok=True)
 
-    if ds.img_shape is not None and (ds.img_shape[0] < tile_h or ds.img_shape[1] < tile_w):
+    if inplace:
+        target_dir = ds.measurement_dir
+        effective_delete = False  # TempSwap handles deletion
+    else:
+        target_dir = root / f"tiles_{tile_w}x{tile_h}"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        effective_delete = delete_original
+
+    # Validate image size unconditionally
+    img_shape = ds.img_shape
+    if img_shape is None and not ds.metadata.empty:
+        row = ds.metadata.iloc[0]
+        img_dir = row["directory"]
+        chs = ds.intensity_colnames
+        if chs:
+            img_path = Path(img_dir) / row[chs[0]]
+            if img_path.exists():
+                img = read_image(img_path)
+                img_shape = img.shape[:2]
+
+    if img_shape is not None and (img_shape[0] < tile_h or img_shape[1] < tile_w):
         raise ValueError(
-            f"Images of size {ds.img_shape} are smaller than tile size "
+            f"Images of size {img_shape} are smaller than tile size "
             f"({tile_w}×{tile_h}). All images must be at least as large "
             "as the tile dimensions."
         )
@@ -113,16 +137,18 @@ def tile_dataset(
         for ch in ds.intensity_colnames:
             all_paths.append(Path(img_dir) / row[ch])
 
-    total_tiles = 0
-    for src in tqdm(all_paths, desc="Tiling", unit="img"):
-        if not src.exists():
-            continue
-        n = _split_single_image(src, tile_w, tile_h, tile_dir)
-        total_tiles += n
+    with TempSwap(target_dir, "tile") as swap:
+        for src in tqdm(all_paths, desc="Tiling", unit="img"):
+            if not src.exists():
+                continue
+            n = _split_single_image(src, tile_w, tile_h, swap.temp_dir)
+            if inplace or effective_delete:
+                swap.mark_original(src)
+            _ = n  # total count not critical for correctness
 
-    if delete_original:
+    if effective_delete and not inplace:
         for src in all_paths:
             if src.exists():
                 src.unlink()
 
-    return ImageDataset(tile_dir)
+    return ImageDataset(target_dir)

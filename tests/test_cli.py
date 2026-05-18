@@ -28,8 +28,8 @@ class TestBuildParser:
 
     def test_convert_resize(self):
         parser = build_parser()
-        args = parser.parse_args(["convert", "/data", "--format", "operetta", "--resize", "0.5"])
-        assert args.resize == 0.5
+        args = parser.parse_args(["convert", "/data", "--format", "operetta", "--convert-resize", "0.5"])
+        assert args.convert_resize == 0.5
 
     def test_convert_output_name(self):
         parser = build_parser()
@@ -40,6 +40,7 @@ class TestBuildParser:
         parser = build_parser()
         args = parser.parse_args([
             "run", "/data", "--format", "mica",
+            "--convert-resize", "0.5",
             "--resize", "0.5",
             "--basic", "fit-transform",
             "--z-projection", "max",
@@ -51,6 +52,7 @@ class TestBuildParser:
             "--db", "out.db",
         ])
         assert args.format == "mica"
+        assert args.convert_resize == 0.5
         assert args.resize == 0.5
         assert args.basic == "fit-transform"
         assert args.z_projection == "max"
@@ -73,7 +75,7 @@ class TestMain:
         temp_input = temp_dir / "input"
         shutil.copytree(str(operetta_test_dir), str(temp_input))
         exit_code = main(["convert", str(temp_input), "--format", "operetta",
-                          "--output-name", "unified", "--resize", "1.0"])
+                          "--output-name", "unified", "--convert-resize", "1.0"])
         assert exit_code == 0
         converted = temp_input / "unified"
         tiffs = list(converted.glob("*.tiff"))

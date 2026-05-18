@@ -37,15 +37,16 @@ pip install -e .
 ## Pipeline Order
 
 ```
-Input → Convert → BaSiC correction → Z-projection → Tile → Segment → Profile
+Input → Convert[+resize] → Resize → BaSiC → Z-projection → Tile → Segment → Profile
 ```
 
-1. **Convert** — Vendor-format files → `{well}_f{field}_z{z}_t{t}_ch{ch}.tiff`
-2. **BaSiC correction** (optional) — Flatfield/darkfield shading correction
-3. **Z-projection** (optional) — Max/mean/min projection of Z-stacks
-4. **Tile splitting** (optional) — Non-overlapping tiles
-5. **Segmentation** (optional) — Cellpose-SAM object detection
-6. **Profiling** — Image-level and object-level feature extraction
+1. **Convert** — Vendor-format files → `{well}_f{field}_z{z}_t{t}_ch{ch}.tiff` (optional resize during write)
+2. **Resize** (optional) — Standalone resize step (after conversion if `--resize` is set)
+3. **BaSiC correction** (optional) — Flatfield/darkfield shading correction
+4. **Z-projection** (optional) — Max/mean/min projection of Z-stacks
+5. **Tile splitting** (optional) — Non-overlapping tiles
+6. **Segmentation** (optional) — Cellpose-SAM object detection
+7. **Profiling** — Image-level and object-level feature extraction
 
 ## Quick Start (CLI)
 
@@ -53,8 +54,9 @@ Input → Convert → BaSiC correction → Z-projection → Tile → Segment →
 # Run full pipeline using a YAML config file
 microprofiler run /path/to/Measurement\ 1 --config examples/pipeline_config.yml
 
-# Run full pipeline on Operetta format (with resize during conversion)
+# Run full pipeline on Operetta format (with resize during conversion and standalone resize)
 microprofiler run /path/to/Measurement\ 1 --format operetta \
+  --convert-resize 0.5 \
   --resize 0.5 \
   --basic fit-transform \
   --z-projection max \
@@ -69,7 +71,12 @@ microprofiler run /path/to/Sequence\ 002 --format mica \
   --profile-object cell --db results.db
 
 # Convert only (with optional resize and custom output name)
-microprofiler convert /path/to/Measurement\ 1 --format operetta --resize 0.5 --output-name myoutput
+microprofiler convert /path/to/Measurement\ 1 --format operetta --convert-resize 0.5 --output-name myoutput
+
+# Opt out of in-place processing; opt into vendor file deletion
+microprofiler run /path/to/Measurement\ 1 \
+  --no-basic-inplace --no-zproject-inplace --no-tile-inplace \
+  --delete-original
 ```
 
 A complete YAML config with all parameters is at [`examples/pipeline_config.yml`](examples/pipeline_config.yml).
@@ -78,7 +85,6 @@ A complete YAML config with all parameters is at [`examples/pipeline_config.yml`
 
 ```python
 from pathlib import Path
-from microProfiler import ImageDataset
 from microProfiler.preprocessing.converter import convert_measurement
 from microProfiler.preprocessing.z_projection import z_project_dataset
 from microProfiler.preprocessing.tile_splitter import tile_dataset
@@ -89,12 +95,10 @@ from microProfiler.profiling.object_profiler import profile_objects
 root = Path(r"/path/to/Measurement 1")
 
 # 1. Convert to unified naming (optional resize during conversion)
-convert_measurement(root, vendor_format="operetta", resize_factor=0.5)
+#    Returns an ImageDataset pointing to "image/" by default
+ds = convert_measurement(root, vendor_format="operetta", resize_factor=0.5)
 
-# 2. Load dataset (auto-detects .tiff/.tif/.jpg/.jpeg)
-ds = ImageDataset(root / "unified")
-
-# 3. Preprocess (output directories are siblings under root)
+# 3. Preprocess (in-place by default — files updated in the images/ directory)
 ds = z_project_dataset(ds, root_dir=root, method="max")
 ds = tile_dataset(ds, root_dir=root, tile_w=540, tile_h=540)
 
@@ -134,6 +138,15 @@ profile_objects(ds, mask_name="cell",
 ## API Documentation
 
 See [`docs/api.md`](docs/api.md) for the full API reference including class and function signatures, parameters, and return types.
+
+## Acknowledgements
+
+microProfiler uses the following open-source libraries:
+
+- **BaSiCPy** — Flatfield and darkfield shading correction.  
+  https://github.com/peng-lab/BaSiCPy
+- **Cellpose** — Generalist deep learning model for segmentation.  
+  https://github.com/MouseLand/cellpose
 
 ## Citation
 

@@ -38,12 +38,20 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--format", choices=["operetta", "mica"], default="operetta",
                             help="Vendor format of input data")
     run_parser.add_argument(
+        "--convert-resize", type=float, default=None,
+        help="Resize scale factor applied during conversion write",
+    )
+    run_parser.add_argument(
         "--resize", type=float, default=None,
-        help="Resize scale factor (applied during conversion)",
+        help="Standalone resize scale factor (after conversion)",
     )
     run_parser.add_argument(
         "--output-name", type=str, default=None,
-        help="Converter output subdirectory name (default: unified)",
+        help="Converter output subdirectory name (default: image)",
+    )
+    run_parser.add_argument(
+        "--delete-original", action="store_true", default=False,
+        help="Delete original vendor files after conversion (default: preserve)",
     )
     run_parser.add_argument(
         "--basic", type=str, default=None,
@@ -51,13 +59,37 @@ def build_parser() -> argparse.ArgumentParser:
         help="BaSiC correction mode",
     )
     run_parser.add_argument(
+        "--basic-inplace",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Apply BaSiC correction in-place",
+    )
+    run_parser.add_argument(
         "--z-projection", type=str, default=None,
         choices=["max", "mean", "min"],
         help="Z-projection method",
     )
     run_parser.add_argument(
+        "--zproject-inplace",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Apply Z-projection in-place",
+    )
+    run_parser.add_argument(
         "--tile", type=int, nargs=2, default=None,
         metavar=("W", "H"), help="Tile width and height",
+    )
+    run_parser.add_argument(
+        "--tile-inplace",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Apply tile splitting in-place",
+    )
+    run_parser.add_argument(
+        "--resize-inplace",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Apply standalone resize in-place",
     )
     run_parser.add_argument(
         "--segment", type=str, default=None,
@@ -88,14 +120,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     conv_parser.add_argument("input_dir", type=Path, help="Path to raw measurement directory")
     conv_parser.add_argument("--format", choices=["operetta", "mica"], required=True,
-                            help="Vendor format of input data")
+                             help="Vendor format of input data")
     conv_parser.add_argument(
         "--output-name", type=str, default=None,
-        help="Output subdirectory name (default: unified)",
+        help="Output subdirectory name (default: image)",
     )
     conv_parser.add_argument(
-        "--resize", type=float, default=None,
+        "--convert-resize", type=float, default=None,
         help="Resize scale factor (applied during conversion)",
+    )
+    conv_parser.add_argument(
+        "--delete-original", action="store_true", default=False,
+        help="Delete original vendor files after conversion (default: preserve)",
     )
 
     return parser
@@ -122,13 +158,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "convert":
         from microProfiler.preprocessing.converter import convert_measurement
 
-        result = convert_measurement(
+        conv_resize = args.convert_resize if args.convert_resize is not None else 1.0
+        delete_original = getattr(args, "delete_original", False)
+        ds = convert_measurement(
             input_dir=args.input_dir,
             vendor_format=args.format,
-            resize_factor=args.resize if args.resize is not None else 1.0,
-            output_name=args.output_name if args.output_name else "unified",
+            resize_factor=conv_resize,
+            output_name=args.output_name if args.output_name else "image",
+            delete_original=delete_original,
         )
-        log.info("Converted %d files", len(result))
+        log.info("Converted %d files", len(ds))
         return 0
 
     if args.command == "run":
@@ -139,18 +178,43 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.output:
             cfg.output_dir = args.output
-        if args.resize is not None:
-            cfg.resize = {"scale_factor": args.resize}
+
+        # ── Conversion config ───────────────────────────────────────────
+        conv = cfg.convert.model_dump() if cfg.convert else {}
         if args.output_name:
-            conv = cfg.convert.model_dump() if cfg.convert else {}
             conv["output_name"] = args.output_name
+        if args.convert_resize is not None:
+            conv["resize_factor"] = args.convert_resize
+        if getattr(args, "delete_original", False):
+            conv["delete_original"] = True
+        if conv:
             cfg.convert = conv
+
+        # ── Standalone resize config ────────────────────────────────────
+        if args.resize is not None:
+            rcfg = {"scale_factor": args.resize}
+            rcfg["inplace"] = getattr(args, "resize_inplace", True)
+            cfg.resize = rcfg
+
+        # ── Basic correction config ─────────────────────────────────────
         if args.basic:
-            cfg.basic_correction = {"mode": args.basic}
+            bc = {"mode": args.basic}
+            bc["inplace"] = args.basic_inplace
+            cfg.basic_correction = bc
+
+        # ── Z-projection config ─────────────────────────────────────────
         if args.z_projection:
-            cfg.z_projection = {"method": args.z_projection}
+            zp = {"method": args.z_projection}
+            zp["inplace"] = args.zproject_inplace
+            cfg.z_projection = zp
+
+        # ── Tile config ─────────────────────────────────────────────────
         if args.tile:
-            cfg.tile = {"tile_width": args.tile[0], "tile_height": args.tile[1]}
+            tl = {"tile_width": args.tile[0], "tile_height": args.tile[1]}
+            tl["inplace"] = args.tile_inplace
+            cfg.tile = tl
+
+        # ── Segmentation config ─────────────────────────────────────────
         if args.segment:
             seg = cfg.segmentation
             if isinstance(seg, BaseModel):
@@ -161,6 +225,8 @@ def main(argv: list[str] | None = None) -> int:
             if args.segment_channels:
                 seg["chan1"] = args.segment_channels
             cfg.segmentation = seg
+
+        # ── Profiling config ────────────────────────────────────────────
         if args.profile_image or args.profile_object:
             prof = cfg.profiling
             if isinstance(prof, BaseModel):
