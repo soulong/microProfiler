@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 
-def _array_to_pixmap(arr: np.ndarray, lo: float = 2.0, hi: float = 98.0) -> QPixmap:
+def _array_to_pixmap(arr: np.ndarray, lo: float = 0.1, hi: float = 99.9) -> QPixmap:
     """Convert a 2-D numpy array to QPixmap with percentile-based contrast stretch.
 
     Parameters
@@ -25,7 +25,7 @@ def _array_to_pixmap(arr: np.ndarray, lo: float = 2.0, hi: float = 98.0) -> QPix
     arr : np.ndarray
         Input image array.
     lo, hi : float
-        Percentile values for contrast clipping (default: 2nd and 98th).
+        Percentile values for contrast clipping (default: 0.1th and 99.9th).
     """
     arr = arr.astype(np.float64)
     if arr.max() > arr.min():
@@ -47,6 +47,7 @@ class ImageViewer(QGraphicsView):
         self._scene = QGraphicsScene(self)
         self.setScene(self._scene)
         self._pixmap_item: Optional[QGraphicsPixmapItem] = None
+        self._fit_to_view = True
         self.setRenderHints(QPainter.SmoothPixmapTransform | QPainter.Antialiasing)
         self.setDragMode(QGraphicsView.ScrollHandDrag)
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
@@ -61,14 +62,16 @@ class ImageViewer(QGraphicsView):
         self._pixmap_item = QGraphicsPixmapItem(pixmap)
         self._scene.addItem(self._pixmap_item)
         self.fitInView(self._pixmap_item, Qt.KeepAspectRatio)
+        self._fit_to_view = True
 
     def wheelEvent(self, event):
         factor = 1.15 if event.angleDelta().y() > 0 else 1 / 1.15
         self.scale(factor, factor)
+        self._fit_to_view = False
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        if self._pixmap_item:
+        if self._pixmap_item and self._fit_to_view:
             self.fitInView(self._pixmap_item, Qt.KeepAspectRatio)
 
 
