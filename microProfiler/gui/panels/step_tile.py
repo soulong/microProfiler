@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
-    QCheckBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -34,23 +33,19 @@ class TileStepPanel(BaseStepPanel):
         self._tile_h.setValue(1024)
         self._tile_h.setSingleStep(256)
         row.addWidget(self._tile_h)
-        self._inplace = QCheckBox("In-place")
-        self._inplace.setChecked(True)
-        row.addWidget(self._inplace)
         row.addStretch()
         self._apply_btn = QPushButton("▶ Apply")
         self._apply_btn.setStyleSheet("font-weight: bold; padding: 4px 16px;")
         row.addWidget(self._apply_btn)
         self._controls_layout.addLayout(row)
 
-        for w in (self._tile_w, self._tile_h, self._inplace):
+        for w in (self._tile_w, self._tile_h):
             self._wire_param_signal(w)
 
     def save_to_settings(self, settings) -> dict:
         params = {
             "tile_width": self._tile_w.value(),
             "tile_height": self._tile_h.value(),
-            "inplace": self._inplace.isChecked(),
         }
         settings.save_params(self.step_name, params)
         return params
@@ -69,8 +64,6 @@ class TileStepPanel(BaseStepPanel):
                 self._tile_h.setValue(int(stored["tile_height"]))
             except (ValueError, TypeError):
                 pass
-        if "inplace" in stored:
-            self._inplace.setChecked(stored["inplace"] in ("1", "True", "true"))
 
     def load_config_section(self, section: dict) -> None:
         if not section:
@@ -79,12 +72,9 @@ class TileStepPanel(BaseStepPanel):
             self._tile_w.setValue(int(section["tile_width"]))
         if "tile_height" in section:
             self._tile_h.setValue(int(section["tile_height"]))
-        if "inplace" in section:
-            self._inplace.setChecked(bool(section["inplace"]))
 
     def build_config_section(self) -> dict:
         return {
             "tile_width": self._tile_w.value(),
             "tile_height": self._tile_h.value(),
-            "inplace": self._inplace.isChecked(),
         }

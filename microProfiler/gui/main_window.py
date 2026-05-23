@@ -380,6 +380,7 @@ class MainWindow(QMainWindow):
                     self._profile_panel.populate_channels(ds.intensity_colnames)
                     self._profile_panel.populate_masks(ds.mask_colnames)
                     self._ctrl._sync_seg_masks_to_profiling()
+                    self._basic_panel.set_preview_channels(ds.intensity_colnames)
                     self._update_convert_info(ds)
 
                     # Detect completed steps from session.json or disk state
@@ -573,7 +574,7 @@ class MainWindow(QMainWindow):
 
     def _load_config(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
-            self, "Load Config", "", "YAML files (*.yml *.yaml)"
+            self, "Load Config", "", "Config files (*.yml *.yaml *.json)"
         )
         if not path:
             return

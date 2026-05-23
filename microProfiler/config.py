@@ -69,7 +69,6 @@ class PipelineConfig(BaseModel):
 
 class ResizeConfig(BaseModel):
     scale_factor: float = Field(1.0, ge=0.1, le=4.0, description="Resize scale factor")
-    inplace: bool = Field(True, description="Resize images in-place (overwrite source directory)")
 
 
 class BasicConfig(BaseModel):
@@ -77,18 +76,15 @@ class BasicConfig(BaseModel):
     n_image: int = Field(50, ge=1, description="Number of images for fitting")
     working_size: int = Field(64, ge=16, description="Working size for BaSiC model")
     enable_darkfield: bool = Field(False, description="Enable darkfield estimation")
-    inplace: bool = Field(True, description="Correct images in-place (overwrite source directory)")
 
 
 class ZProjectionConfig(BaseModel):
     method: ProjectionMethod = Field(ProjectionMethod.max, description="Projection method")
-    inplace: bool = Field(True, description="Project in-place (replace source directory)")
 
 
 class TileConfig(BaseModel):
     tile_width: int = Field(1024, ge=64, description="Tile width in pixels")
     tile_height: int = Field(1024, ge=64, description="Tile height in pixels")
-    inplace: bool = Field(True, description="Tile in-place (replace source directory)")
 
 
 class SegmentationConfig(BaseModel):

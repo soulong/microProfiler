@@ -1,8 +1,9 @@
 """PreviewWorker — runs single-image preview operations in a background thread."""
 from __future__ import annotations
 
+import pickle
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from PySide6.QtCore import QObject, QThread, Signal
@@ -64,8 +65,26 @@ class PreviewWorker(QObject):
             extra: dict = {}
 
             if self._op == "basic":
+                channels = self._params.get("channels", [])
+                model_root = self._dataset.measurement_dir.parent
+                flatfield_data: Dict[str, np.ndarray] = {}
                 for ch, img in before_channels:
-                    after_channels.append((ch, img))
+                    if ch not in channels:
+                        after_channels.append((ch, img))
+                        continue
+                    model_path = model_root / "BaSiC_model" / f"model_{ch}.pkl"
+                    if model_path.exists():
+                        with open(model_path, "rb") as f:
+                            model = pickle.load(f)
+                        ff = model.flatfield.astype(np.float32)
+                        corrected = img.astype(np.float32) / ff
+                        if hasattr(model, "darkfield") and model.darkfield is not None:
+                            corrected *= model.darkfield.astype(np.float32)
+                        after_channels.append((ch, corrected))
+                        flatfield_data[ch] = ff
+                    else:
+                        after_channels.append((ch, img))
+                extra["flatfield"] = flatfield_data
 
             elif self._op == "segment":
                 from microProfiler.segmentation.cellpose import segment_single

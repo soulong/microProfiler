@@ -153,6 +153,7 @@ class PipelineController(QObject):
             self._w._profile_panel.populate_channels(dataset.intensity_colnames)
             self._w._profile_panel.populate_masks(dataset.mask_colnames)
             self._sync_seg_masks_to_profiling()
+            self._w._basic_panel.set_preview_channels(dataset.intensity_colnames)
             self._w._update_tab_status()
             sf = SessionFile(self._output_path())
             sf.create_initial(self._w._format_combo.currentText())
@@ -448,9 +449,18 @@ class PipelineController(QObject):
         if ds is not None and len(ds) > 0:
             import random as _random
             self._w._state.random_row_idx = _random.randint(0, len(ds) - 1)
+            idx = self._w._state.random_row_idx
             logging.getLogger("microProfiler").info(
-                f"Picked random row {self._w._state.random_row_idx}"
+                f"Picked random row {idx}"
             )
+            # For BaSiC, immediately load and show the raw image
+            if step and step.step_name == "basic" and hasattr(step, "_channel_tiles"):
+                from microProfiler.io.loaders import read_image
+                row = ds.metadata.iloc[idx]
+                row_dir = Path(row["directory"])
+                for ch in ds.intensity_colnames:
+                    img = read_image(row_dir / row[ch])
+                    step._channel_tiles[ch][0].set_image(img)
 
     def on_segment_pick(self, block_index: int) -> None:
         ds = self._w._state.dataset
@@ -535,6 +545,9 @@ class PipelineController(QObject):
         if step.step_name == "basic":
             step.update_preview_raw(dict(before))
             step.update_preview_corrected(dict(after))
+            flatfield = extra.get("flatfield", {})
+            if flatfield:
+                step.update_preview_flatfield(flatfield)
         elif step.step_name == "segment":
             block_idx = self._preview_block_index
             if block_idx is None:

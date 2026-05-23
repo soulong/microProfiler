@@ -44,9 +44,6 @@ class BaSiCStepPanel(BaseStepPanel):
         row1.addWidget(self._working_size)
         self._darkfield = QCheckBox("Darkfield")
         row1.addWidget(self._darkfield)
-        self._inplace = QCheckBox("In-place")
-        self._inplace.setChecked(True)
-        row1.addWidget(self._inplace)
         row1.addStretch()
         self._controls_layout.addLayout(row1)
 
@@ -63,7 +60,7 @@ class BaSiCStepPanel(BaseStepPanel):
         row2.addWidget(self._apply_btn)
         self._controls_layout.addLayout(row2)
 
-        for w in (self._mode, self._n_image, self._working_size, self._darkfield, self._inplace):
+        for w in (self._mode, self._n_image, self._working_size, self._darkfield):
             self._wire_param_signal(w)
 
     def _build_preview(self):
@@ -136,7 +133,6 @@ class BaSiCStepPanel(BaseStepPanel):
             "n_image": self._n_image.value(),
             "working_size": self._working_size.value(),
             "enable_darkfield": self._darkfield.isChecked(),
-            "inplace": self._inplace.isChecked(),
         }
         settings.save_params(self.step_name, params)
         return params
@@ -161,8 +157,6 @@ class BaSiCStepPanel(BaseStepPanel):
                 pass
         if "enable_darkfield" in stored:
             self._darkfield.setChecked(stored["enable_darkfield"] in ("1", "True", "true"))
-        if "inplace" in stored:
-            self._inplace.setChecked(stored["inplace"] in ("1", "True", "true"))
 
     def load_config_section(self, section: dict) -> None:
         if not section:
@@ -177,8 +171,6 @@ class BaSiCStepPanel(BaseStepPanel):
             self._working_size.setValue(int(section["working_size"]))
         if "enable_darkfield" in section:
             self._darkfield.setChecked(bool(section["enable_darkfield"]))
-        if "inplace" in section:
-            self._inplace.setChecked(bool(section["inplace"]))
 
     def build_config_section(self) -> dict:
         return {
@@ -186,5 +178,4 @@ class BaSiCStepPanel(BaseStepPanel):
             "n_image": self._n_image.value(),
             "working_size": self._working_size.value(),
             "enable_darkfield": self._darkfield.isChecked(),
-            "inplace": self._inplace.isChecked(),
         }

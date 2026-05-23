@@ -59,37 +59,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="BaSiC correction mode",
     )
     run_parser.add_argument(
-        "--basic-inplace",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Apply BaSiC correction in-place",
-    )
-    run_parser.add_argument(
         "--z-projection", type=str, default=None,
         choices=["max", "mean", "min"],
         help="Z-projection method",
     )
     run_parser.add_argument(
-        "--zproject-inplace",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Apply Z-projection in-place",
-    )
-    run_parser.add_argument(
         "--tile", type=int, nargs=2, default=None,
         metavar=("W", "H"), help="Tile width and height",
-    )
-    run_parser.add_argument(
-        "--tile-inplace",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Apply tile splitting in-place",
-    )
-    run_parser.add_argument(
-        "--resize-inplace",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Apply standalone resize in-place",
     )
     run_parser.add_argument(
         "--segment", type=str, default=None,
@@ -192,27 +168,19 @@ def main(argv: list[str] | None = None) -> int:
 
         # ── Standalone resize config ────────────────────────────────────
         if args.resize is not None:
-            rcfg = {"scale_factor": args.resize}
-            rcfg["inplace"] = getattr(args, "resize_inplace", True)
-            cfg.resize = rcfg
+            cfg.resize = {"scale_factor": args.resize}
 
         # ── Basic correction config ─────────────────────────────────────
         if args.basic:
-            bc = {"mode": args.basic}
-            bc["inplace"] = args.basic_inplace
-            cfg.basic_correction = bc
+            cfg.basic_correction = {"mode": args.basic}
 
         # ── Z-projection config ─────────────────────────────────────────
         if args.z_projection:
-            zp = {"method": args.z_projection}
-            zp["inplace"] = args.zproject_inplace
-            cfg.z_projection = zp
+            cfg.z_projection = {"method": args.z_projection}
 
         # ── Tile config ─────────────────────────────────────────────────
         if args.tile:
-            tl = {"tile_width": args.tile[0], "tile_height": args.tile[1]}
-            tl["inplace"] = args.tile_inplace
-            cfg.tile = tl
+            cfg.tile = {"tile_width": args.tile[0], "tile_height": args.tile[1]}
 
         # ── Segmentation config ─────────────────────────────────────────
         if args.segment:

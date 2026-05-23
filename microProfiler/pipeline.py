@@ -53,7 +53,7 @@ def _run_resize(
             ds,
             scale_factor=cfg.resize.scale_factor,
             root_dir=root_dir,
-            inplace=cfg.resize.inplace,
+            inplace=True,
             progress_cb=progress_cb,
         )
         if progress_cb:
@@ -80,7 +80,7 @@ def _run_basic(
             working_size=cfg.basic_correction.working_size,
             enable_darkfield=cfg.basic_correction.enable_darkfield,
             root_dir=root_dir,
-            inplace=cfg.basic_correction.inplace,
+            inplace=True,
             progress_cb=progress_cb,
         )
         if progress_cb:
@@ -104,7 +104,7 @@ def _run_zproject(
             ds,
             method=cfg.z_projection.method,
             root_dir=root_dir,
-            inplace=cfg.z_projection.inplace,
+            inplace=True,
             progress_cb=progress_cb,
         )
         if progress_cb:
@@ -129,7 +129,7 @@ def _run_tile(
             tile_w=cfg.tile.tile_width,
             tile_h=cfg.tile.tile_height,
             root_dir=root_dir,
-            inplace=cfg.tile.inplace,
+            inplace=True,
             progress_cb=progress_cb,
         )
         if progress_cb:
