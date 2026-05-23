@@ -48,6 +48,7 @@ class ImageViewer(QGraphicsView):
         self.setScene(self._scene)
         self._pixmap_item: Optional[QGraphicsPixmapItem] = None
         self._fit_to_view = True
+        self._zoom_level = 0
         self.setRenderHints(QPainter.SmoothPixmapTransform | QPainter.Antialiasing)
         self.setDragMode(QGraphicsView.ScrollHandDrag)
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
@@ -63,12 +64,27 @@ class ImageViewer(QGraphicsView):
         self._scene.addItem(self._pixmap_item)
         self.fitInView(self._pixmap_item, Qt.KeepAspectRatio)
         self._fit_to_view = True
+        self._zoom_level = 0
+
+    def _reset_view(self) -> None:
+        if self._pixmap_item:
+            self.fitInView(self._pixmap_item, Qt.KeepAspectRatio)
+            self._fit_to_view = True
+            self._zoom_level = 0
+
+    def mouseDoubleClickEvent(self, event):
+        self._reset_view()
+        super().mouseDoubleClickEvent(event)
 
     def wheelEvent(self, event):
-        factor = 1.15
-        if event.angleDelta().y() > 0:
-            self.scale(factor, factor)
+        delta = event.angleDelta().y()
+        if delta > 0:
+            self.scale(1.15, 1.15)
+            self._zoom_level += 1
             self._fit_to_view = False
+        elif delta < 0 and self._zoom_level > 0:
+            self.scale(1 / 1.15, 1 / 1.15)
+            self._zoom_level -= 1
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
