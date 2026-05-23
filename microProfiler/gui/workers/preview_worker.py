@@ -77,9 +77,8 @@ class PreviewWorker(QObject):
                         with open(model_path, "rb") as f:
                             model = pickle.load(f)
                         ff = model.flatfield.astype(np.float32)
-                        corrected = img.astype(np.float32) / ff
-                        if hasattr(model, "darkfield") and model.darkfield is not None:
-                            corrected *= model.darkfield.astype(np.float32)
+                        df = model.darkfield.astype(np.float32) if hasattr(model, "darkfield") and model.darkfield is not None else 0.0
+                        corrected = (img.astype(np.float32) - df) / ff
                         after_channels.append((ch, corrected))
                         flatfield_data[ch] = ff
                     else:
