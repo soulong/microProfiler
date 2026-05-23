@@ -14,7 +14,7 @@ def main() -> None:
     app = QApplication(sys.argv)
     app.setApplicationName("microProfiler")
     app.setOrganizationName("microProfiler")
-    app.setApplicationVersion("0.8.1")
+    app.setApplicationVersion("0.9.0")
 
     icon_path = Path(__file__).parent / "icon.png"
     if icon_path.exists():
