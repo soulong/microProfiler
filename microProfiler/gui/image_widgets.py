@@ -17,12 +17,23 @@ from PySide6.QtWidgets import (
 )
 
 
-def _array_to_pixmap(arr: np.ndarray) -> QPixmap:
-    """Convert a 2-D numpy array to QPixmap with auto-scaling."""
+def _array_to_pixmap(arr: np.ndarray, lo: float = 2.0, hi: float = 98.0) -> QPixmap:
+    """Convert a 2-D numpy array to QPixmap with percentile-based contrast stretch.
+
+    Parameters
+    ----------
+    arr : np.ndarray
+        Input image array.
+    lo, hi : float
+        Percentile values for contrast clipping (default: 2nd and 98th).
+    """
     arr = arr.astype(np.float64)
     if arr.max() > arr.min():
-        arr = (arr - arr.min()) / (arr.max() - arr.min())
-    arr = (arr * 255).clip(0, 255).astype(np.uint8)
+        vmin, vmax = np.percentile(arr, (lo, hi))
+        if vmax > vmin:
+            arr = (arr - vmin) / (vmax - vmin)
+        arr = arr.clip(0, 1)
+    arr = (arr * 255).round().clip(0, 255).astype(np.uint8)
     h, w = arr.shape
     img = QImage(arr.data, w, h, w, QImage.Format_Grayscale8)
     return QPixmap.fromImage(img)
