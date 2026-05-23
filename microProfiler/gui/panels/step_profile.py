@@ -99,6 +99,7 @@ class ProfileStepPanel(BaseStepPanel):
         obj_layout.addLayout(self._intensity_ch_layout)
 
         # -- Radial --
+        obj_layout.addSpacing(8)
         obj_layout.addWidget(_hsep())
         self._radial_ch_layout = QHBoxLayout()
         self._radial_ch_layout.setContentsMargins(0, 0, 0, 0)
@@ -117,6 +118,7 @@ class ProfileStepPanel(BaseStepPanel):
         obj_layout.addLayout(rad_params)
 
         # -- Granularity --
+        obj_layout.addSpacing(8)
         obj_layout.addWidget(_hsep())
         self._gran_ch_layout = QHBoxLayout()
         self._gran_ch_layout.setContentsMargins(0, 0, 0, 0)
@@ -144,6 +146,7 @@ class ProfileStepPanel(BaseStepPanel):
         obj_layout.addLayout(gran_params)
 
         # -- GLCM --
+        obj_layout.addSpacing(8)
         obj_layout.addWidget(_hsep())
         self._glcm_ch_layout = QHBoxLayout()
         self._glcm_ch_layout.setContentsMargins(0, 0, 0, 0)
@@ -168,6 +171,7 @@ class ProfileStepPanel(BaseStepPanel):
         obj_layout.addLayout(glcm_params)
 
         # -- Correlation --
+        obj_layout.addSpacing(8)
         obj_layout.addWidget(_hsep())
         self._corr_layout = QHBoxLayout()
         self._corr_layout.setContentsMargins(0, 0, 0, 0)

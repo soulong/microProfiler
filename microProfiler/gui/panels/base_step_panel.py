@@ -54,6 +54,8 @@ class BaseStepPanel(QGroupBox):
         self._preview_layout.setContentsMargins(0, 0, 0, 0)
 
         body = QVBoxLayout(self)
+        body.setContentsMargins(0, 0, 0, 0)
+        body.setSpacing(2)
         body.addLayout(top)
         body.addWidget(self._controls_widget)
         body.addWidget(self._preview_widget)
