@@ -118,21 +118,33 @@ class SegmentBlockWidget(QWidget):
         self._chan_row = row3
         row3.addWidget(QLabel("Chan1:"))
         self._chan1_checkboxes: List[QCheckBox] = []
-        for ch in self._channels:
-            cb = QCheckBox(ch)
-            cb.setChecked(True)
-            self._chan1_checkboxes.append(cb)
-            row3.addWidget(cb)
+        self._chan1_placeholder: Optional[QLabel] = None
+        if self._channels:
+            for ch in self._channels:
+                cb = QCheckBox(ch)
+                cb.setChecked(True)
+                self._chan1_checkboxes.append(cb)
+                row3.addWidget(cb)
+        else:
+            self._chan1_placeholder = QLabel("Load a dataset to configure")
+            self._chan1_placeholder.setStyleSheet("color: #888;")
+            row3.addWidget(self._chan1_placeholder)
         row3.addWidget(QLabel("Merge1:"))
         self._merge1 = QComboBox()
         self._merge1.addItems(["mean", "max", "min"])
         row3.addWidget(self._merge1)
         row3.addWidget(QLabel("Chan2:"))
         self._chan2_checkboxes: List[QCheckBox] = []
-        for ch in self._channels:
-            cb = QCheckBox(ch)
-            self._chan2_checkboxes.append(cb)
-            row3.addWidget(cb)
+        self._chan2_placeholder: Optional[QLabel] = None
+        if self._channels:
+            for ch in self._channels:
+                cb = QCheckBox(ch)
+                self._chan2_checkboxes.append(cb)
+                row3.addWidget(cb)
+        else:
+            self._chan2_placeholder = QLabel("Load a dataset to configure")
+            self._chan2_placeholder.setStyleSheet("color: #888;")
+            row3.addWidget(self._chan2_placeholder)
         row3.addWidget(QLabel("Merge2:"))
         self._merge2 = QComboBox()
         self._merge2.addItems(["mean", "max", "min"])
@@ -185,6 +197,18 @@ class SegmentBlockWidget(QWidget):
         self._channels = channels
         self._chan1_checkboxes.clear()
         self._chan2_checkboxes.clear()
+
+        # Remove placeholder labels if present
+        for attr in ("_chan1_placeholder", "_chan2_placeholder"):
+            placeholder = getattr(self, attr, None)
+            if placeholder is not None:
+                for i in range(self._chan_row.count() - 1, -1, -1):
+                    item = self._chan_row.itemAt(i)
+                    if item and item.widget() is placeholder:
+                        self._chan_row.removeItem(item)
+                        placeholder.deleteLater()
+                        setattr(self, attr, None)
+                        break
 
         # Remove all QCheckBox widgets from the channel row (iterate backwards)
         for i in range(self._chan_row.count() - 1, -1, -1):
@@ -250,6 +274,9 @@ class SegmentBlockWidget(QWidget):
             w.setEnabled(not locked)
         for cb in self._chan1_checkboxes + self._chan2_checkboxes:
             cb.setEnabled(not locked)
+        for placeholder in (self._chan1_placeholder, self._chan2_placeholder):
+            if placeholder is not None:
+                placeholder.setEnabled(not locked)
 
 
 class SegmentStepPanel(BaseStepPanel):

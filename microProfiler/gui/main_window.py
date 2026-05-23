@@ -541,10 +541,27 @@ class MainWindow(QMainWindow):
         n = len(ds)
         ch = ", ".join(ds.intensity_colnames) if ds.intensity_colnames else "—"
         shape = ds.img_shape
-        info = f"Images: {n}\nChannels: {ch}"
+        dtype = ds.img_dtype
+        masks = ", ".join(ds.mask_colnames) if ds.mask_colnames else "—"
+
+        lines = [f"Path: {ds.measurement_dir}", f"Images: {n}", f"Channels: {ch}"]
         if shape:
-            info += f"\nDimensions: {shape[0]}×{shape[1]}"
-        self._convert_info_label.setText(info)
+            lines.append(f"Dimensions: {shape[0]}×{shape[1]}")
+        if dtype is not None:
+            lines.append(f"Data type: {dtype}")
+        if ds.mask_colnames:
+            lines.append(f"Masks: {masks}")
+
+        # Derive well/field counts from metadata
+        meta = ds.metadata
+        if meta is not None and "well" in meta.columns:
+            n_wells = meta["well"].nunique()
+            lines.append(f"Wells: {n_wells}")
+        if meta is not None and "field" in meta.columns:
+            n_fields = meta["field"].nunique()
+            lines.append(f"Fields: {n_fields}")
+
+        self._convert_info_label.setText("\n".join(lines))
 
     def _clear_convert_info(self) -> None:
         """Reset dataset info panel to placeholder."""

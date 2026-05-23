@@ -171,25 +171,18 @@ class PipelineController(QObject):
 
         cfg = self._build_base_config()
         executed_steps = []
-        skipped_locked = []
         for step in self._w._preprocessing_steps:
             section = step.build_config_section()
             if section and step.is_enabled():
-                if not step._controls_widget.isEnabled():
-                    skipped_locked.append(step.step_name)
-                    continue
                 attr = _STEP_MAPPING.get(step.step_name, step.step_name)
                 setattr(cfg, attr, section)
                 executed_steps.append(step)
 
-        if skipped_locked:
-            logging.getLogger("microProfiler").info(
-                f"Skipped (already applied): {', '.join(skipped_locked)}"
-            )
         if not executed_steps:
             QMessageBox.information(
                 self._w, "No Steps To Run",
-                "No enabled preprocessing steps need to be run."
+                "No enabled preprocessing steps to run. "
+                "Check the checkbox on each step panel to enable it."
             )
             sf.set_running(False)
             self._w._set_running(False)
