@@ -82,6 +82,7 @@ class ProfileStepPanel(BaseStepPanel):
         self._object_mask = QComboBox()
         self._object_mask.setEditable(True)
         self._parent_mask = QComboBox()
+        self._parent_mask.setEditable(True)
         self._parent_mask.addItems(["None"])
         mask_form.addRow("Mask name:", self._object_mask)
         mask_form.addRow("Parent mask:", self._parent_mask)

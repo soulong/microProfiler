@@ -152,6 +152,7 @@ class PipelineController(QObject):
             self._w._segment_panel.populate_channels(dataset.intensity_colnames)
             self._w._profile_panel.populate_channels(dataset.intensity_colnames)
             self._w._profile_panel.populate_masks(dataset.mask_colnames)
+            self._sync_seg_masks_to_profiling()
             self._w._update_tab_status()
             sf = SessionFile(self._output_path())
             sf.create_initial(self._w._format_combo.currentText())

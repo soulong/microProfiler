@@ -378,6 +378,8 @@ class MainWindow(QMainWindow):
                     self._profile_panel.setChecked(True)
                     self._segment_panel.populate_channels(ds.intensity_colnames)
                     self._profile_panel.populate_channels(ds.intensity_colnames)
+                    self._profile_panel.populate_masks(ds.mask_colnames)
+                    self._ctrl._sync_seg_masks_to_profiling()
                     self._update_convert_info(ds)
 
                     # Detect completed steps from session.json or disk state
