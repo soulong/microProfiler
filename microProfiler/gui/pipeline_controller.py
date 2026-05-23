@@ -276,6 +276,21 @@ class PipelineController(QObject):
             )
             return
 
+        # Check if result database exists and ask for overwrite confirmation
+        db_path = self._output_path() / "results.db"
+        if db_path.exists():
+            reply = QMessageBox.question(
+                self._w, "Overwrite Results",
+                f"Results database already exists at:\n{db_path}\n\n"
+                "Do you want to overwrite? This will delete existing results.",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if reply != QMessageBox.Yes:
+                return
+            db_path.unlink()
+            logging.getLogger("microProfiler").info("Existing results database deleted.")
+
         self._w._set_running(True)
         sf = SessionFile(self._output_path())
         sf.set_running(True)
