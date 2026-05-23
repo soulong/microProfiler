@@ -65,9 +65,10 @@ class ImageViewer(QGraphicsView):
         self._fit_to_view = True
 
     def wheelEvent(self, event):
-        factor = 1.15 if event.angleDelta().y() > 0 else 1 / 1.15
-        self.scale(factor, factor)
-        self._fit_to_view = False
+        factor = 1.15
+        if event.angleDelta().y() > 0:
+            self.scale(factor, factor)
+            self._fit_to_view = False
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
