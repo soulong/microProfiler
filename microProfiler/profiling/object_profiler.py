@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -19,6 +19,8 @@ from microProfiler.profiling.extras import (
     make_radial_distribution,
     measure_channel_correlation,
 )
+
+ProgressCB = Callable[[str, int, int, str], None]
 
 # ── Shape properties ─────────────────────────────────────────────────────
 _SHAPE_PROPS: Tuple[str, ...] = (
@@ -364,19 +366,17 @@ def profile_objects(
     correlation_pairs: Optional[List[Tuple[str, str]]] = None,
     db_path: Union[str, Path, None] = None,
     table_name: Optional[str] = None,
+    progress_cb: Optional[ProgressCB] = None,
+    **extra_kwargs,
 ) -> Optional[pd.DataFrame]:
     """Profile all objects in a dataset for a given mask.
 
     Parameters
     ----------
     ds : ImageDataset
-        Dataset (must contain mask files for ``mask_name``).
     mask_name : str
-        Mask to use (e.g. ``"cell"``).
     parent_mask_name : str, optional
-        Parent mask for hierarchical assignment.
     intensity_channels : list of str, optional
-        Channels for intensity stats.  ``None`` = all.
     radial_channels : list of str, optional
     radial_n_bins : int
     granularity_channels : list of str, optional
@@ -384,9 +384,11 @@ def profile_objects(
     glcm_distances : list of int, optional
     correlation_pairs : list of (str, str), optional
     db_path : str or Path, optional
-        SQLite output path.
     table_name : str, optional
-        DB table name (defaults to ``mask_name``).
+    **extra_kwargs : dict, optional
+        Extra keyword arguments forwarded to ``measure_objects()``.
+        Use to override ``granularity_kwargs``, ``glcm_kwargs``,
+        ``radial_kwargs``, etc.
 
     Returns
     -------
@@ -396,6 +398,8 @@ def profile_objects(
     results: List[pd.DataFrame] = []
 
     for idx in tqdm(range(len(ds)), desc=f"Profiling {mask_name}", unit="img"):
+        if progress_cb:
+            progress_cb(f"Profile {mask_name}", idx, len(ds), f"Row {idx}")
         row = ds.metadata.iloc[idx]
         meta = {
             k: v for k, v in row.to_dict().items()
@@ -430,6 +434,13 @@ def profile_objects(
             measure_kwargs["glcm_kwargs"] = {
                 "distances": glcm_distances or [1, 2, 3],
             }
+
+        # Merge extra_kwargs (overrides from caller via pipeline.py)
+        for k, v in extra_kwargs.items():
+            if k in measure_kwargs and isinstance(measure_kwargs[k], dict) and isinstance(v, dict):
+                measure_kwargs[k].update(v)
+            else:
+                measure_kwargs[k] = v
 
         result_df = measure_objects(
             mask=mask,

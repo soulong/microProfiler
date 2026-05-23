@@ -180,6 +180,19 @@ class ImageDataset:
         mask_paths = [p for p in all_files if re.search(self._mask_pattern, p.name)]
 
         if not image_paths:
+            image_subdir = self.measurement_dir / "image"
+            has_tiffs = image_subdir.is_dir() and list(image_subdir.glob("*.tiff"))
+            if search_dir != image_subdir and has_tiffs:
+                search_dir = image_subdir
+                self.measurement_dir = image_subdir
+                if self._image_pattern is UNIFIED_IMAGE_PATTERN:
+                    ext = _detect_intensity_suffix(search_dir)
+                    self._image_pattern = re.compile(_UNIFIED_IMAGE_BASE + re.escape(ext))
+                all_files = [Path(p) for p in glob(str(search_dir / "**/*"), recursive=True)]
+                image_paths = [p for p in all_files if re.search(self._image_pattern, p.name)]
+                mask_paths = [p for p in all_files if re.search(self._mask_pattern, p.name)]
+
+        if not image_paths:
             raise FileNotFoundError(
                 f"No image files matching pattern found in {self.measurement_dir}"
             )

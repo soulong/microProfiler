@@ -7,7 +7,7 @@ optionally object-area statistics via thresholding.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -16,6 +16,8 @@ from tqdm import tqdm
 
 from microProfiler.io.dataset import ImageDataset
 from microProfiler.io.database import Database
+
+ProgressCB = Callable[[str, int, int, str], None]
 
 
 def measure_single_image(
@@ -94,6 +96,7 @@ def profile_images(
     thresholds: Optional[Dict[str, float]] = None,
     db_path: Union[str, Path, None] = None,
     table_name: str = "image",
+    progress_cb: Optional[ProgressCB] = None,
 ) -> Optional[pd.DataFrame]:
     """Profile all images in a dataset at the whole-image level.
 
@@ -119,6 +122,8 @@ def profile_images(
     results: List[pd.DataFrame] = []
 
     for idx in tqdm(range(len(ds)), desc="Image profiling", unit="img"):
+        if progress_cb:
+            progress_cb("Profile Image", idx, len(ds), f"Row {idx}")
         image_data, _ = ds.get_imageset(idx)
         row = ds.metadata.iloc[idx]
 

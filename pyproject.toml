@@ -32,7 +32,9 @@ dependencies = [
     "scipy",
     "pydantic>=2.0",
     "tifffile",
+    "Pillow",
     "pyyaml",
+    "PySide6",
 ]
 
 [project.optional-dependencies]
@@ -47,7 +49,7 @@ Homepage = "https://github.com/soulong/microProfiler"
 Repository = "https://github.com/soulong/microProfiler.git"
 
 [project.scripts]
-microprofiler = "microProfiler.cli:main"
+microprofiler = "microProfiler.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

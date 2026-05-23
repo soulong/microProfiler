@@ -44,7 +44,7 @@ else:
 
 class HillClimbingOptimizer:
     """Hill Climbing Optimizer - Replacement for hyperactive.optimizers.HillClimbingOptimizer.
-    
+
     A simple hill climbing optimization algorithm that explores the search space
     by generating neighbours around the current best solution.
     """
@@ -57,7 +57,7 @@ class HillClimbingOptimizer:
         rand_rest_p: float = 0.1,
     ):
         """Initialize the Hill Climbing Optimizer.
-        
+
         Args:
             epsilon: Step size for neighbourhood exploration.
             distribution: Distribution for generating neighbours ('laplace' or 'gaussian').
@@ -71,12 +71,12 @@ class HillClimbingOptimizer:
 
     def suggest(self, search_space: Dict, current_best: Optional[Dict] = None, random_state: Optional[int] = None) -> Dict:
         """Suggest a new parameter configuration.
-        
+
         Args:
             search_space: Dictionary defining the search space for each parameter.
             current_best: Current best parameters found so far.
             random_state: Random seed for reproducibility.
-            
+
         Returns:
             A new parameter configuration to evaluate.
         """
@@ -147,7 +147,7 @@ class HillClimbingOptimizer:
 
 class Hyperactive:
     """Hyperactive - Replacement for hyperactive.Hyperactive.
-    
+
     A simple optimization wrapper that performs hill climbing optimization
     over a given search space and objective function.
     """
@@ -161,7 +161,7 @@ class Hyperactive:
 
     def add_search(self, objective_func, search_space: Dict, **kwargs):
         """Add a search to the optimizer.
-        
+
         Args:
             objective_func: The objective function to maximize.
             search_space: Dictionary defining the search space.
@@ -190,7 +190,7 @@ class Hyperactive:
 
     def _run_search(self, search: Dict):
         """Run a single search optimization.
-        
+
         Args:
             search: Search configuration dictionary.
         """
@@ -254,10 +254,10 @@ class Hyperactive:
 
     def best_para(self, objective_func) -> Dict:
         """Get the best parameters found for a given objective function.
-        
+
         Args:
             objective_func: The objective function to get best params for.
-            
+
         Returns:
             Dictionary of best parameters found.
         """
@@ -540,7 +540,7 @@ class BaSiC(BaseModel):
         if fitting_weight is not None and fitting_weight.shape != images.shape:
             raise ValueError("fitting_weight must have the same shape as images.")
 
-        start_time = time.monotonic()
+        time.monotonic()
 
         Im = self._resize_to_working_size(images)
 
@@ -743,7 +743,7 @@ class BaSiC(BaseModel):
         if self.baseline is None:
             raise RuntimeError("BaSiC object is not initialized")
 
-        start_time = time.monotonic()
+        time.monotonic()
 
         # Convert to the correct format
         im_float = images.astype(np.float32)

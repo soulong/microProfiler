@@ -135,6 +135,39 @@ profile_objects(ds, mask_name="cell",
 | `profiling.object_profiler` | Per-object features (shape, intensity, texture) |
 | `profiling.extras` | Radial distribution, granularity, GLCM, correlation |
 
+## Desktop GUI
+
+microProfiler includes a PySide6 desktop GUI that wraps the full pipeline with step-by-step image preview, parameter configuration, progress bars, and a log console.
+
+### System Requirements
+
+- **OS**: Windows 10/11 (64-bit) — GUI is Windows-optimized; CLI works cross-platform
+- **RAM**: 16 GB minimum (32 GB recommended for large datasets)
+- **GPU**: NVIDIA GPU with CUDA 12+ (recommended for segmentation speed; CPU fallback works)
+
+### Running the GUI
+
+```bash
+conda activate micro
+microprofiler
+```
+
+The `microprofiler` command launches the GUI when called with no arguments. The CLI pipeline is accessible via subcommands:
+
+| Command | Action |
+|---------|--------|
+| `microprofiler` | Launch desktop GUI |
+| `microprofiler run ...` | Run pipeline from CLI |
+| `microprofiler convert ...` | Convert vendor format via CLI |
+| `microprofiler --version` | Print version |
+| `microprofiler --help` | Show CLI help |
+
+### Cellpose Model
+
+microProfiler does **not** bundle Cellpose model weights. On first use:
+- Leave the **Model** field empty to use the built-in `cpsam` model (downloaded automatically by Cellpose).
+- Or click **Browse** to select a custom `.pt` model file.
+
 ## API Documentation
 
 See [`docs/api.md`](docs/api.md) for the full API reference including class and function signatures, parameters, and return types.

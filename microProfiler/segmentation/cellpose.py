@@ -10,7 +10,7 @@ from __future__ import annotations
 import gc
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -22,6 +22,8 @@ from tqdm import tqdm
 
 from microProfiler.io.dataset import ImageDataset
 from microProfiler.io.loaders import read_image
+
+ProgressCB = Callable[[str, int, int, str], None]
 
 
 def merge_channels(
@@ -122,6 +124,73 @@ def build_cellpose_image(
     return c1[np.newaxis, ...]
 
 
+def segment_single(
+    row: pd.Series,
+    chan1: List[str],
+    chan2: Optional[List[str]] = None,
+    merge1: str = "mean",
+    merge2: str = "mean",
+    model_name: str = "cpsam",
+    diameter: Optional[float] = None,
+    flow_threshold: float = 0.4,
+    cellprob_threshold: float = 0.0,
+    resize_factor: float = 1.0,
+) -> Tuple[np.ndarray, Optional[np.ndarray], np.ndarray]:
+    """Segment a single image row using Cellpose-SAM.
+
+    Parameters
+    ----------
+    row : pd.Series
+        Single row from the metadata DataFrame.
+    chan1 : list of str
+        First channel group names.
+    chan2 : list of str or None
+        Second channel group names (optional).
+    merge1, merge2 : str
+        Merge method (``"mean"``, ``"max"``, ``"min"``).
+    model_name : str
+        Cellpose model name or path.
+    diameter : float or None
+        Object diameter in pixels (None = auto).
+    flow_threshold : float
+        Cellpose flow threshold.
+    cellprob_threshold : float
+        Cell probability threshold.
+    resize_factor : float
+        Resize factor before segmentation.
+
+    Returns
+    -------
+    tuple of (np.ndarray or None, np.ndarray or None, np.ndarray)
+        ``(chan1_merged, chan2_merged_or_None, mask)``.
+    """
+    device = _get_device()
+    model = models.CellposeModel(device=device, pretrained_model=model_name)
+    img = build_cellpose_image(row, chan1, chan2, merge1, merge2, resize_factor)
+    diameter_val = None if diameter is None or diameter <= 0 else int(diameter * resize_factor)
+    masks, flows, _ = model.eval(
+        img,
+        normalize={"percentile": [0.1, 99.9]},
+        diameter=diameter_val,
+        flow_threshold=flow_threshold,
+        cellprob_threshold=cellprob_threshold,
+    )
+    if resize_factor != 1.0:
+        masks = rescale(masks, 1.0 / resize_factor, order=0).astype(np.uint16)
+
+    c1_img = img[0] if img.shape[0] >= 1 else None
+    c2_img = img[1] if img.shape[0] >= 2 else None
+    return c1_img, c2_img, masks
+
+
+def _get_device() -> torch.device:
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
+
+
 def segment_dataset(
     ds: ImageDataset,
     object_name: str = "cell",
@@ -137,6 +206,7 @@ def segment_dataset(
     flow_threshold: float = 0.4,
     cellprob_threshold: float = 0.0,
     gpu_batch_size: int = 16,
+    progress_cb: Optional[ProgressCB] = None,
 ) -> ImageDataset:
     """Run Cellpose-SAM segmentation on every image in the dataset.
 
@@ -196,12 +266,7 @@ def segment_dataset(
         log.error("Channels not found in dataset: %s", missing)
         return ds
 
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-    elif torch.backends.mps.is_available():
-        device = torch.device("mps")
-    else:
-        device = torch.device("cpu")
+    device = _get_device()
     normalize = normalize or {"percentile": [0.1, 99.9]}
 
     model = models.CellposeModel(device=device, pretrained_model=model_name)
@@ -209,6 +274,8 @@ def segment_dataset(
 
     metadata = ds.metadata
     for idx in tqdm(range(len(metadata)), desc="Cellpose", unit="img"):
+        if progress_cb:
+            progress_cb("Segment", idx, len(metadata), f"Image {idx}")
         row = metadata.iloc[idx]
         stem_ch = chan1[0]
         src_path = Path(row["directory"]) / row[stem_ch]

@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional, Union
+from typing import Callable, List, Optional, Tuple, Union
 
+import numpy as np
 from tqdm import tqdm
 
 from microProfiler.io.dataset import ImageDataset, UNIFIED_IMAGE_PATTERN
@@ -17,58 +18,39 @@ from microProfiler.preprocessing._swap import TempSwap
 
 log = logging.getLogger(__name__)
 
+ProgressCB = Callable[[str, int, int, str], None]
 
-def _split_single_image(
-    src: Path,
+
+def tile_single(
+    img: np.ndarray,
     tile_w: int,
     tile_h: int,
-    output_dir: Path,
-) -> int:
-    """Split a single 2-D image into tiles with unified naming.
+) -> List[Tuple[int, np.ndarray]]:
+    """Split a single 2-D image into non-overlapping tiles.
 
     Parameters
     ----------
-    src : Path
-        Source image path.
+    img : np.ndarray
+        Input 2-D image.
     tile_w : int
         Tile width in pixels.
     tile_h : int
         Tile height in pixels.
-    output_dir : Path
-        Directory to save tiles.
 
     Returns
     -------
-    int
-        Number of tiles created.
+    list of (int, np.ndarray)
+        List of ``(tile_index, tile_array)`` tuples.
     """
-    m = UNIFIED_IMAGE_PATTERN.match(src.name)
-    if m is None:
-        return 0
-    well = m.group("well")
-    field = m.group("field")
-    stack = m.group("stack")
-    timepoint = m.group("timepoint")
-    channel = m.group("channel")
-
-    img = read_image(src)
-    if img.ndim != 2:
-        log.warning("Skipping non-2D image (ndim=%d): %s", img.ndim, src.name)
-        return 0
-
     h, w = img.shape
+    tiles: List[Tuple[int, np.ndarray]] = []
     tile_idx = 0
-    n_kept = 0
     for y in range(0, h, tile_h):
         for x in range(0, w, tile_w):
             if y + tile_h <= h and x + tile_w <= w:
-                tile = img[y : y + tile_h, x : x + tile_w]
-                out_name = f"{well}_f{field}_z{stack}_t{timepoint}_ch{channel}_tile{tile_idx}.tiff"
-                write_image(output_dir / out_name, tile)
-                n_kept += 1
+                tiles.append((tile_idx, img[y : y + tile_h, x : x + tile_w]))
             tile_idx += 1
-
-    return n_kept
+    return tiles
 
 
 def tile_dataset(
@@ -78,6 +60,7 @@ def tile_dataset(
     delete_original: bool = False,
     root_dir: Optional[Union[str, Path]] = None,
     inplace: bool = True,
+    progress_cb: Optional[ProgressCB] = None,
 ) -> ImageDataset:
     """Split all images in a dataset into tiles.
 
@@ -138,13 +121,27 @@ def tile_dataset(
             all_paths.append(Path(img_dir) / row[ch])
 
     with TempSwap(target_dir, "tile") as swap:
-        for src in tqdm(all_paths, desc="Tiling", unit="img"):
+        for i, src in enumerate(tqdm(all_paths, desc="Tiling", unit="img")):
+            if progress_cb:
+                progress_cb("Tile", i, len(all_paths), f"Image {src.name}")
             if not src.exists():
                 continue
-            n = _split_single_image(src, tile_w, tile_h, swap.temp_dir)
+            img = read_image(src)
+            tiles = tile_single(img, tile_w, tile_h)
+            for tile_idx, tile in tiles:
+                m = UNIFIED_IMAGE_PATTERN.match(src.name)
+                if m is not None:
+                    out_name = (
+                        f"{m.group('well')}_f{m.group('field')}"
+                        f"_z{m.group('stack')}_t{m.group('timepoint')}"
+                        f"_ch{m.group('channel')}_tile{tile_idx}.tiff"
+                    )
+                    write_image(swap.temp_dir / out_name, tile)
             if inplace or effective_delete:
                 swap.mark_original(src)
-            _ = n  # total count not critical for correctness
+
+    if progress_cb:
+        progress_cb("Tile", len(all_paths), len(all_paths), "Tiling complete")
 
     if effective_delete and not inplace:
         for src in all_paths:

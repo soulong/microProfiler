@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import logging
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Callable, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -15,8 +15,10 @@ from microProfiler.io.dataset import ImageDataset
 from microProfiler.io.loaders import read_image, write_image
 from microProfiler.preprocessing._swap import TempSwap
 
+ProgressCB = Callable[[str, int, int, str], None]
 
-def _project_group(
+
+def z_project_single(
     image_paths: List[Path],
     method: str = "max",
 ) -> np.ndarray:
@@ -56,6 +58,7 @@ def z_project_dataset(
     delete_original: bool = False,
     root_dir: Optional[Union[str, Path]] = None,
     inplace: bool = True,
+    progress_cb: Optional[ProgressCB] = None,
 ) -> ImageDataset:
     """Perform Z-projection on a dataset.
 
@@ -85,9 +88,6 @@ def z_project_dataset(
     if "stack" not in metadata.columns:
         raise ValueError("Metadata must contain a 'stack' column for Z-projection")
 
-    if metadata["stack"].nunique() == 1:
-        raise ValueError("Metadata 'stack' column has only one unique value")
-
     # Compute group columns dynamically: all non-data columns except stack
     exclude = set(ds.intensity_colnames) | set(ds.mask_colnames) | {"stack", "directory"}
     group_cols = [c for c in metadata.columns if c not in exclude]
@@ -106,11 +106,16 @@ def z_project_dataset(
         effective_delete = delete_original
 
     grouped = metadata.groupby(group_cols, sort=False)
+    all_groups = list(grouped)
 
     all_source_set: set[Path] = set()
 
     with TempSwap(target_dir, "zproject") as swap:
-        for group_key, group_df in tqdm(grouped, desc="Z-projection", unit="group"):
+        for gi, (group_key, group_df) in enumerate(
+            tqdm(all_groups, desc="Z-projection", unit="group"),
+        ):
+            if progress_cb:
+                progress_cb("Z-projection", gi, len(all_groups), f"Group {group_key}")
             if len(group_df) <= 1:
                 continue  # no Z-stack to project
 
@@ -124,7 +129,7 @@ def z_project_dataset(
                 if not paths:
                     continue
 
-                projected = _project_group(paths, method)
+                projected = z_project_single(paths, method)
 
                 out_name = re.sub(r'_z\d+', '_z0', paths[0].name)
                 write_image(swap.temp_dir / out_name, projected)
@@ -134,6 +139,9 @@ def z_project_dataset(
 
         if inplace:
             swap.mark_originals(list(all_source_set))
+
+    if progress_cb:
+        progress_cb("Z-projection", len(all_groups), len(all_groups), "Z-projection complete")
 
     if effective_delete and not inplace:
         for p in all_source_set:

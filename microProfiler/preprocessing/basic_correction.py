@@ -6,10 +6,11 @@ The actual BaSiC algorithm lives in ``microProfiler.preprocessing.basic``
 
 from __future__ import annotations
 
+import logging
 import pickle
 import random
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Callable, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -19,8 +20,10 @@ from microProfiler.io.loaders import read_image, write_image
 from microProfiler.preprocessing._swap import TempSwap
 from microProfiler.preprocessing.basic.basic import BaSiC
 
+ProgressCB = Callable[[str, int, int, str], None]
 
-def _basic_fit(
+
+def basic_fit(
     image_paths: List[Path],
     n_image: int = 50,
     enable_darkfield: bool = False,
@@ -65,7 +68,7 @@ def _basic_fit(
     return basic
 
 
-def _basic_transform(
+def basic_transform(
     image_paths: List[Path],
     model: BaSiC,
     target_dir: Path,
@@ -111,6 +114,7 @@ def fit_models(
     working_size: int = 64,
     enable_darkfield: bool = False,
     root_dir: Optional[Union[str, Path]] = None,
+    progress_cb: Optional[ProgressCB] = None,
 ) -> Path:
     """Fit BaSiC models for specified channels.
 
@@ -141,7 +145,10 @@ def fit_models(
     model_dir = root / "BaSiC_model"
     model_dir.mkdir(parents=True, exist_ok=True)
 
-    for chan in channels:
+    for ci, chan in enumerate(channels):
+        if progress_cb:
+            progress_cb("BaSiC Fit", ci, len(channels), f"Fitting channel {chan}")
+        logging.getLogger("microProfiler").info("BaSiC fitting channel %s (%d/%d)", chan, ci + 1, len(channels))
         paths = [
             Path(metadata.iloc[i]["directory"]) / metadata.iloc[i][chan]
             for i in range(len(metadata))
@@ -150,7 +157,8 @@ def fit_models(
         if not paths:
             continue
 
-        model = _basic_fit(paths, n_image, enable_darkfield, working_size)
+        model = basic_fit(paths, n_image, enable_darkfield, working_size)
+        logging.getLogger("microProfiler").info("BaSiC finished fitting channel %s", chan)
 
         with open(model_dir / f"model_{chan}.pkl", "wb") as f:
             pickle.dump(model, f)
@@ -165,6 +173,8 @@ def fit_models(
                 model.darkfield.astype(np.float32),
             )
 
+    if progress_cb:
+        progress_cb("BaSiC Fit", len(channels), len(channels), "Fit complete")
     return model_dir
 
 
@@ -173,6 +183,7 @@ def transform_images(
     channels: Optional[List[str]] = None,
     root_dir: Optional[Union[str, Path]] = None,
     inplace: bool = True,
+    progress_cb: Optional[ProgressCB] = None,
 ) -> ImageDataset:
     """Apply fitted BaSiC models to correct images.
 
@@ -202,11 +213,22 @@ def transform_images(
         target_dir = root / "BaSiC_corrected"
         target_dir.mkdir(parents=True, exist_ok=True)
 
+    total_items = sum(
+        1 for chan in channels
+        if (root / "BaSiC_model" / f"model_{chan}.pkl").exists()
+    )
+    item_idx = 0
+
     with TempSwap(target_dir, "basic") as swap:
         for chan in channels:
             model_path = root / "BaSiC_model" / f"model_{chan}.pkl"
             if not model_path.exists():
                 continue
+
+            if progress_cb:
+                progress_cb("BaSiC Transform", item_idx, total_items, f"Channel {chan}")
+            logging.getLogger("microProfiler").info("BaSiC transforming channel %s", chan)
+            item_idx += 1
 
             with open(model_path, "rb") as f:
                 model = pickle.load(f)
@@ -219,10 +241,14 @@ def transform_images(
 
             for batch_start in range(0, len(paths), 50):
                 batch = paths[batch_start : batch_start + 50]
-                _basic_transform(batch, model, swap.temp_dir)
+                basic_transform(batch, model, swap.temp_dir)
 
             if inplace:
                 swap.mark_originals(paths)
+            logging.getLogger("microProfiler").info("BaSiC finished transforming channel %s", chan)
+
+    if progress_cb:
+        progress_cb("BaSiC Transform", total_items, total_items, "Transform complete")
 
     return ImageDataset(target_dir)
 
@@ -265,6 +291,7 @@ def apply_basic(
     enable_darkfield: bool = False,
     root_dir: Optional[Union[str, Path]] = None,
     inplace: bool = True,
+    progress_cb: Optional[ProgressCB] = None,
 ) -> ImageDataset:
     """End-to-end BaSiC correction: fit, transform, or both.
 
@@ -299,9 +326,10 @@ def apply_basic(
             working_size=working_size,
             enable_darkfield=enable_darkfield,
             root_dir=root_dir,
+            progress_cb=progress_cb,
         )
 
     if mode in ("transform", "fit-transform"):
-        return transform_images(ds, root_dir=root_dir, inplace=inplace)
+        return transform_images(ds, root_dir=root_dir, inplace=inplace, progress_cb=progress_cb)
 
     return ds

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class VendorFormat(str, Enum):
@@ -25,7 +25,9 @@ class ConvertConfig(BaseModel):
     """Converter configuration."""
 
     output_name: str = Field("image", description="Output directory name under root")
-    resize_factor: float = Field(1.0, ge=0.1, le=4.0, description="Resize scale factor during conversion")
+    resize_factor: float = Field(
+        1.0, ge=0.1, le=4.0, description="Resize scale factor during conversion",
+    )
     delete_original: bool = Field(
         False, description="Delete original vendor files after conversion",
     )
@@ -50,9 +52,18 @@ class PipelineConfig(BaseModel):
     )
     tile: Optional[TileConfig] = Field(None, description="Tile splitting configuration")
 
-    segmentation: Optional[SegmentationConfig] = Field(
-        None, description="Segmentation configuration",
+    segmentations: List[SegmentationConfig] = Field(
+        default_factory=list, description="Segmentation configurations (multi-seg supported)",
     )
+
+    @field_validator("segmentations", mode="before")
+    @classmethod
+    def _migrate_single_seg(cls, v: Any) -> Any:
+        """Accept a single dict (old format) and wrap in a list."""
+        if isinstance(v, dict):
+            return [v]
+        return v
+
     profiling: Optional[ProfilingConfig] = Field(None, description="Profiling configuration")
 
 
@@ -96,8 +107,14 @@ class ProfilingConfig(BaseModel):
     image_channels: Optional[List[str]] = Field(
         None, description="Channels for image profiling",
     )
+    image_thresholds: Optional[Dict[str, float]] = Field(
+        None, description="Per-channel thresholds for image-level object detection",
+    )
     object_mask_name: Optional[str] = Field(
         None, description="Mask for object profiling",
+    )
+    parent_mask_name: Optional[str] = Field(
+        None, description="Parent mask for hierarchical object assignment",
     )
     object_intensity_channels: Optional[List[str]] = Field(
         None, description="Channels for object intensity",
@@ -107,8 +124,23 @@ class ProfilingConfig(BaseModel):
     )
     object_radial_bins: int = Field(5, ge=1)
     object_granularity_channels: Optional[List[str]] = Field(None)
+    object_granularity_scales: Optional[str] = Field(
+        None, description="Comma-separated scale indices for granularity (e.g. '0,1,2,3,4')",
+    )
+    object_granularity_subsample: Optional[float] = Field(
+        None, ge=0.01, le=1.0, description="Granularity subsample fraction",
+    )
+    object_granularity_element_size: Optional[int] = Field(
+        None, ge=1, le=100, description="Granularity element size",
+    )
     object_glcm_channels: Optional[List[str]] = Field(None)
     object_glcm_distances: Optional[List[int]] = Field(None)
+    object_glcm_levels: Optional[int] = Field(
+        None, ge=2, le=256, description="GLCM quantization levels",
+    )
+    object_glcm_angles: Optional[str] = Field(
+        None, description="Comma-separated GLCM angles in radians (e.g. '0,0.785,1.571,2.356')",
+    )
     correlation_pairs: Optional[List[List[str]]] = Field(
         None, description="Channel pairs for correlation",
     )

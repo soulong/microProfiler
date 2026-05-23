@@ -14,10 +14,12 @@ dependencies:
   - jax
   - pyyaml
   - tqdm
+  - pyside6
   - pytest
   - pytest-cov
   - pip
   - pip:
     - natsort
     - pydantic>=2.0
+    - pillow
     - ruff

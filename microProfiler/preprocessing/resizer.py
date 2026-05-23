@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 
+import numpy as np
 from scipy.ndimage import zoom as ndi_zoom
 from tqdm import tqdm
 
@@ -18,6 +19,29 @@ from microProfiler.preprocessing._swap import TempSwap
 
 log = logging.getLogger(__name__)
 
+ProgressCB = Callable[[str, int, int, str], None]
+
+
+def resize_single(img: np.ndarray, scale_factor: float) -> np.ndarray:
+    """Resize a single 2-D image by a scale factor.
+
+    Parameters
+    ----------
+    img : np.ndarray
+        Input 2-D image.
+    scale_factor : float
+        Resize factor (e.g., 0.5 halves both dimensions).
+
+    Returns
+    -------
+    np.ndarray
+        Resized image with same dtype as input.
+    """
+    h, w = img.shape[:2]
+    target = (int(round(h * scale_factor)), int(round(w * scale_factor)))
+    zoom = (target[0] / h, target[1] / w)
+    return ndi_zoom(img, zoom, order=1).astype(img.dtype)
+
 
 def resize_dataset(
     ds: ImageDataset,
@@ -25,6 +49,7 @@ def resize_dataset(
     root_dir: Optional[Union[str, Path]] = None,
     inplace: bool = True,
     delete_original: bool = False,
+    progress_cb: Optional[ProgressCB] = None,
 ) -> ImageDataset:
     """Resize all images in a dataset by a scale factor.
 
@@ -70,20 +95,22 @@ def resize_dataset(
             all_paths.append(Path(img_dir) / row[ch])
 
     with TempSwap(target_dir, "resize") as swap:
-        for src in tqdm(all_paths, desc="Resizing", unit="img"):
+        for i, src in enumerate(tqdm(all_paths, desc="Resizing", unit="img")):
+            if progress_cb:
+                progress_cb("Resize", i, len(all_paths), f"Image {src.name}")
             if not src.exists():
                 continue
             img = read_image(src)
-            h, w = img.shape[:2]
-            target = (int(round(h * scale_factor)), int(round(w * scale_factor)))
-            zoom = (target[0] / h, target[1] / w)
-            resized = ndi_zoom(img, zoom, order=1).astype(img.dtype)
+            resized = resize_single(img, scale_factor)
 
             dst = swap.temp_dir / src.name
             write_image(dst, resized)
 
             if inplace or effective_delete:
                 swap.mark_original(src)
+
+    if progress_cb:
+        progress_cb("Resize", len(all_paths), len(all_paths), "Resize complete")
 
     if effective_delete and not inplace:
         for src in all_paths:

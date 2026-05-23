@@ -15,9 +15,6 @@ from microProfiler.profiling.object_profiler import profile_objects
 DATA_DIR = Path(r"C:\Users\haohe\GitHub\microProfiler\tests\test_result\mica\Sequence 002")
 VENDOR_FORMAT = "mica"
 
-DATA_DIR = Path(r"C:\Users\haohe\GitHub\microProfiler\tests\test_result\operetta\2026-05-01_plate_Measurement 1")
-VENDOR_FORMAT = "operetta"
-
 OUTPUT_DB = DATA_DIR / "result.db"
 
 # ── Step 1: Convert vendor format to unified naming ─────────────────────
@@ -26,9 +23,9 @@ ds = convert_measurement(DATA_DIR, vendor_format=VENDOR_FORMAT, delete_original=
 print(ds)
 print(ds.metadata)
 
-# ── Step 2: Load the converted dataset ──────────────────────────────────
-ds = ImageDataset(DATA_DIR / "unified")
-print(ds)
+# ── Step 2: Converted dataset is already loaded ─────────────────────────
+# The converter writes to DATA_DIR / "image" by default.
+print(f"Dataset measurement dir: {ds.measurement_dir}")
 
 # subset to rows for quick testing
 # ds.filter_metadata("well", r"B[2]").filter_metadata("field", r"[13]")
