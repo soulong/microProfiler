@@ -6,12 +6,15 @@ when images are read — not stored to disk as a separate preprocessing step.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Optional, Union
 
 import numpy as np
 import tifffile
 from PIL import Image
+
+log = logging.getLogger(__name__)
 
 
 def read_image(path: Union[str, Path]) -> np.ndarray:

@@ -20,6 +20,7 @@ from microProfiler.io.loaders import read_image, write_image
 from microProfiler.preprocessing._swap import TempSwap
 from microProfiler.preprocessing.basic.basic import BaSiC
 
+log = logging.getLogger(__name__)
 ProgressCB = Callable[[str, int, int, str], None]
 
 
@@ -148,7 +149,7 @@ def fit_models(
     for ci, chan in enumerate(channels):
         if progress_cb:
             progress_cb("BaSiC Fit", ci, len(channels), f"Fitting channel {chan}")
-        logging.getLogger("microProfiler").info("BaSiC fitting channel %s (%d/%d)", chan, ci + 1, len(channels))
+        log.info("BaSiC fitting channel %s (%d/%d)", chan, ci + 1, len(channels))
         paths = [
             Path(metadata.iloc[i]["directory"]) / metadata.iloc[i][chan]
             for i in range(len(metadata))
@@ -158,7 +159,7 @@ def fit_models(
             continue
 
         model = basic_fit(paths, n_image, enable_darkfield, working_size)
-        logging.getLogger("microProfiler").info("BaSiC finished fitting channel %s", chan)
+        log.info("BaSiC finished fitting channel %s", chan)
 
         with open(model_dir / f"model_{chan}.pkl", "wb") as f:
             pickle.dump(model, f)
@@ -227,7 +228,7 @@ def transform_images(
 
             if progress_cb:
                 progress_cb("BaSiC Transform", item_idx, total_items, f"Channel {chan}")
-            logging.getLogger("microProfiler").info("BaSiC transforming channel %s", chan)
+            log.info("BaSiC transforming channel %s", chan)
             item_idx += 1
 
             with open(model_path, "rb") as f:
@@ -245,7 +246,7 @@ def transform_images(
 
             if inplace:
                 swap.mark_originals(paths)
-            logging.getLogger("microProfiler").info("BaSiC finished transforming channel %s", chan)
+            log.info("BaSiC finished transforming channel %s", chan)
 
     if progress_cb:
         progress_cb("BaSiC Transform", total_items, total_items, "Transform complete")

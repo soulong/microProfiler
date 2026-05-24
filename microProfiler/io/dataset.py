@@ -8,6 +8,7 @@ in dedicated modules that accept an ImageDataset as input.
 
 from __future__ import annotations
 
+import logging
 import re
 from glob import glob
 from pathlib import Path
@@ -18,6 +19,8 @@ import pandas as pd
 from natsort import natsorted
 
 from microProfiler.io.loaders import read_image
+
+log = logging.getLogger(__name__)
 
 # ── Supported intensity image extensions ─────────────────────────────────
 KNOWN_IMAGE_EXTS = (".tiff", ".tif", ".jpg", ".jpeg")
@@ -112,6 +115,7 @@ class ImageDataset:
         self._img_shape: Optional[tuple] = None
         self._img_dtype: Optional[np.dtype] = None
 
+        log.debug("ImageDataset: dir=%s, filters=%s", self.measurement_dir, filters)
         self.build_metadata()
         if filters:
             for col, pat in filters.items():
@@ -168,6 +172,7 @@ class ImageDataset:
         if self._image_pattern is UNIFIED_IMAGE_PATTERN:
             ext = _detect_intensity_suffix(search_dir)
             self._image_pattern = re.compile(_UNIFIED_IMAGE_BASE + re.escape(ext))
+            log.debug("Detected image extension: %s in %s", ext, search_dir)
 
         all_files = [Path(p) for p in glob(str(search_dir / "**/*"), recursive=True)]
 
@@ -178,6 +183,7 @@ class ImageDataset:
 
         image_paths = [p for p in all_files if re.search(self._image_pattern, p.name)]
         mask_paths = [p for p in all_files if re.search(self._mask_pattern, p.name)]
+        log.debug("Found %d intensity images, %d mask images", len(image_paths), len(mask_paths))
 
         if not image_paths:
             image_subdir = self.measurement_dir / "image"
@@ -241,12 +247,13 @@ class ImageDataset:
                 mpivoted.columns = [f"mask_{c}" for c in mpivoted.columns]
                 pivoted = pivoted.join(mpivoted, how="left")
             else:
-                print('intensity_df index:\n', pivoted.index.names)
-                print('mask_combined index:\n', mcombined.index.names)
+                log.debug("intensity_df index: %s", pivoted.index.names)
+                log.debug("mask_combined index: %s", mcombined.index.names)
 
             self._mask_colnames = [f"mask_{n}" for n in mask_names]
 
         self._metadata = pivoted.reset_index()
+        log.debug("Built metadata: %d rows, channels=%s, masks=%s", len(self._metadata), self._intensity_colnames, self._mask_colnames)
 
         # Tile column: convert to int if present, drop if all NaN (pre-tiling)
         if "tile" in self._metadata.columns:
@@ -338,6 +345,7 @@ class ImageDataset:
         img_dir = row["directory"]
 
         channels = channels or self._intensity_colnames
+        log.debug("get_imageset: row=%d, channels=%s", row_idx, channels)
         if isinstance(channels, str):
             channels = [channels]
 

@@ -23,6 +23,7 @@ from tqdm import tqdm
 from microProfiler.io.dataset import ImageDataset
 from microProfiler.io.loaders import read_image
 
+log = logging.getLogger(__name__)
 ProgressCB = Callable[[str, int, int, str], None]
 
 
@@ -185,10 +186,13 @@ def segment_single(
 
 def _get_device() -> torch.device:
     if torch.cuda.is_available():
-        return torch.device("cuda")
+        device = torch.device("cuda")
     elif torch.backends.mps.is_available():
-        return torch.device("mps")
-    return torch.device("cpu")
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+    log.debug("Device selected: %s", device)
+    return device
 
 
 def segment_dataset(
@@ -260,9 +264,13 @@ def segment_dataset(
     if isinstance(chan2, str):
         chan2 = [chan2]
 
+    log.debug(
+        "segment_dataset: object=%s, model=%s, diameter=%s, chan1=%s, chan2=%s, resize=%s",
+        object_name, model_name, diameter, chan1, chan2, resize_factor,
+    )
+
     missing = [ch for ch in (chan1 + (chan2 or [])) if ch not in ds.intensity_colnames]
     if missing:
-        log = logging.getLogger(__name__)
         log.error("Channels not found in dataset: %s", missing)
         return ds
 
@@ -335,12 +343,12 @@ def segment_dataset(
                 torch.cuda.empty_cache()
             gc.collect()
 
-    logging.getLogger(__name__).info(
+    log.info(
         "Segmentation complete: %d processed, %d skipped, %d failed, %d masks saved",
         summary["processed"], summary["skipped"], summary["failed"], summary["masks_saved"],
     )
     if summary["errors"]:
-        logging.getLogger(__name__).warning("Segmentation errors: %s", summary["errors"])
+        log.warning("Segmentation errors: %s", summary["errors"])
 
     ds.build_metadata()
     return ds

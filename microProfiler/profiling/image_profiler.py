@@ -6,6 +6,7 @@ optionally object-area statistics via thresholding.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
@@ -17,6 +18,7 @@ from tqdm import tqdm
 from microProfiler.io.dataset import ImageDataset
 from microProfiler.io.database import Database
 
+log = logging.getLogger(__name__)
 ProgressCB = Callable[[str, int, int, str], None]
 
 
@@ -119,6 +121,10 @@ def profile_images(
         Results DataFrame if ``db_path`` is ``None``.
     """
     channels = channels or ds.intensity_colnames
+    log.debug(
+        "profile_images: channels=%s, thresholds=%s, db=%s, table=%s, count=%d",
+        channels, thresholds, db_path, table_name, len(ds),
+    )
     results: List[pd.DataFrame] = []
 
     for idx in tqdm(range(len(ds)), desc="Image profiling", unit="img"):

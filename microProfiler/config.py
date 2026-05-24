@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+log = logging.getLogger(__name__)
 
 
 class VendorFormat(str, Enum):
@@ -167,8 +170,12 @@ def load_config(
         if path.exists():
             with open(path) as f:
                 config_dict = yaml.safe_load(f) or {}
+            log.debug("load_config: loaded %s (%d keys)", path, len(config_dict))
+        else:
+            log.debug("load_config: config file not found at %s", path)
 
     if overrides:
+        log.debug("load_config: applying %d override keys", len(overrides))
         _deep_merge(config_dict, overrides)
 
     return PipelineConfig(**config_dict)

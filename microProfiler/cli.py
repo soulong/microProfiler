@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
 from pydantic import BaseModel
 
 from microProfiler.config import PipelineConfig, load_config
-from microProfiler.logging_utils import setup_logging
+from microProfiler.logging_utils import set_default_logging_level, setup_logging
 from microProfiler.pipeline import run_pipeline
 
 
@@ -24,6 +25,10 @@ def build_parser() -> argparse.ArgumentParser:
         prog="microProfiler",
         description="Microscopy image preprocessing, segmentation, and profiling pipeline",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--debug", action="store_true", default=False,
+        help="Enable DEBUG-level logging (verbose output)",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -129,7 +134,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    log = setup_logging(log_file=args.log_file if hasattr(args, "log_file") else None)
+    log_level = logging.DEBUG if getattr(args, "debug", False) else logging.INFO
+    set_default_logging_level(log_level)
+    log = setup_logging(
+        level=log_level,
+        log_file=args.log_file if hasattr(args, "log_file") else None,
+    )
+    log.debug("Debug logging enabled")
 
     if args.command == "convert":
         from microProfiler.preprocessing.converter import convert_measurement

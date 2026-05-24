@@ -259,6 +259,11 @@ def convert_measurement(
     output_dir = root_dir / output_name
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    log.debug(
+        "convert_measurement: input=%s, vendor=%s, resize=%s, output_name=%s, delete_original=%s",
+        input_dir, vendor_format, resize_factor, output_name, delete_original,
+    )
+
     converted_count = 0
 
     with TempSwap(output_dir, "convert") as swap:
@@ -273,6 +278,7 @@ def convert_measurement(
             if not tiff_files:
                 raise FileNotFoundError(f"No .tiff files found in {img_dir}")
 
+            log.debug("Operetta: found %d .tiff files", len(tiff_files))
             for src in tiff_files:
                 m = OPERETTA_PATTERN.match(src.name)
                 if m is None:
@@ -285,6 +291,7 @@ def convert_measurement(
 
         elif vendor_format == "mica":
             root = _find_mica_root(input_dir)
+            log.debug("MICA: detected root=%s", root)
 
             row_dirs = sorted(
                 d for d in root.iterdir()

@@ -12,6 +12,7 @@ Features:
 
 from __future__ import annotations
 
+import logging
 from typing import Sequence, Tuple
 
 import numpy as np
@@ -19,6 +20,8 @@ from scipy.ndimage import distance_transform_edt
 from skimage.feature import graycomatrix, graycoprops
 from skimage.morphology import disk, dilation, erosion
 from skimage.transform import resize
+
+log = logging.getLogger(__name__)
 
 
 def _named(fn, name: str):
@@ -140,6 +143,7 @@ def make_granularity(
     Columns: ``granularity_scale{s}_ch{channel}``.
     """
     scales = tuple(scales)
+    log.debug("Granularity: scales=%s, element_size=%s, subsample=%s", scales, element_size, subsample_size)
     fns = []
     for i, s in enumerate(scales):
         def _fn(mask, intensity, _i=i, _scales=scales, _ch=channel,
@@ -218,6 +222,7 @@ def make_glcm(
     distances = tuple(distances)
     angles = tuple(angles)
     props = tuple(props)
+    log.debug("GLCM: distances=%s, angles=%d, levels=%d, props=%s", distances, len(angles), levels, props)
     fns = []
     for di, d in enumerate(distances):
         for pi, p in enumerate(props):

@@ -55,6 +55,7 @@ class TempSwap:
 
     def __enter__(self) -> TempSwap:
         self.temp_dir.mkdir(parents=True, exist_ok=True)
+        log.debug("TempSwap: created temp dir %s", self.temp_dir)
         return self
 
     def __exit__(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
@@ -20,6 +21,7 @@ from microProfiler.profiling.extras import (
     measure_channel_correlation,
 )
 
+log = logging.getLogger(__name__)
 ProgressCB = Callable[[str, int, int, str], None]
 
 # ── Shape properties ─────────────────────────────────────────────────────
@@ -395,6 +397,10 @@ def profile_objects(
     pd.DataFrame or None
     """
     table_name = table_name or mask_name
+    log.debug(
+        "profile_objects: mask=%s, parent=%s, intensity_channels=%s, db=%s, table=%s, count=%d",
+        mask_name, parent_mask_name, intensity_channels, db_path, table_name, len(ds),
+    )
     results: List[pd.DataFrame] = []
 
     for idx in tqdm(range(len(ds)), desc=f"Profiling {mask_name}", unit="img"):

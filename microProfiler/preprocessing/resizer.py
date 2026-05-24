@@ -40,6 +40,7 @@ def resize_single(img: np.ndarray, scale_factor: float) -> np.ndarray:
     h, w = img.shape[:2]
     target = (int(round(h * scale_factor)), int(round(w * scale_factor)))
     zoom = (target[0] / h, target[1] / w)
+    log.debug("resize_single: %s -> %s (factor=%s)", (h, w), target, scale_factor)
     return ndi_zoom(img, zoom, order=1).astype(img.dtype)
 
 
@@ -75,6 +76,7 @@ def resize_dataset(
         return ds
 
     root = Path(root_dir) if root_dir else ds.measurement_dir.parent
+    log.debug("resize_dataset: scale_factor=%s, inplace=%s", scale_factor, inplace)
 
     if inplace:
         target_dir = ds.measurement_dir

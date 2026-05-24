@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import List, Optional, Union
 
 import pandas as pd
+
+log = logging.getLogger(__name__)
 
 
 def write_dataloader(
@@ -33,6 +36,7 @@ def write_dataloader(
         Reformatted DataFrame.
     """
     df = metadata.copy()
+    log.debug("write_dataloader: %d rows, image_cols=%s, mask_cols=%s", len(metadata), image_colnames, mask_colnames)
 
     for ch in image_colnames:
         df[f"Image_PathName_{ch}"] = df["directory"]

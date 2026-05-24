@@ -1,5 +1,7 @@
 """High-level pipeline orchestrator for microProfiler."""
 from __future__ import annotations
+
+import logging
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -7,7 +9,7 @@ from microProfiler.config import PipelineConfig
 from microProfiler.io.dataset import ImageDataset
 from microProfiler.logging_utils import setup_logging
 
-
+log = logging.getLogger(__name__)
 ProgressCB = Callable[[str, int, int, str], None]
 
 
@@ -24,6 +26,13 @@ def _run_convert(
 
     if progress_cb:
         progress_cb("Convert", 0, 1, "Starting conversion...")
+    log.debug(
+        "Convert: vendor=%s, resize=%s, output_name=%s, delete_original=%s",
+        cfg.format,
+        cfg.convert.resize_factor,
+        cfg.convert.output_name,
+        cfg.convert.delete_original,
+    )
     ds = convert_measurement(
         input_dir=cfg.input_dir,
         vendor_format=cfg.format,
@@ -47,6 +56,7 @@ def _run_resize(
     if cfg.resize and cfg.resize.scale_factor != 1.0:
         from microProfiler.preprocessing.resizer import resize_dataset
 
+        log.debug("Resize: scale_factor=%s", cfg.resize.scale_factor)
         if progress_cb:
             progress_cb("Resize", 0, 1, f"Resizing by factor {cfg.resize.scale_factor}...")
         ds = resize_dataset(
@@ -71,6 +81,13 @@ def _run_basic(
     if cfg.basic_correction:
         from microProfiler.preprocessing.basic_correction import apply_basic
 
+        log.debug(
+            "BaSiC: mode=%s, n_image=%d, working_size=%d, darkfield=%s",
+            cfg.basic_correction.mode,
+            cfg.basic_correction.n_image,
+            cfg.basic_correction.working_size,
+            cfg.basic_correction.enable_darkfield,
+        )
         if progress_cb:
             progress_cb("BaSiC", 0, 1, "Applying BaSiC correction...")
         ds = apply_basic(
@@ -98,6 +115,7 @@ def _run_zproject(
     if cfg.z_projection:
         from microProfiler.preprocessing.z_projection import z_project_dataset
 
+        log.debug("Z-projection: method=%s", cfg.z_projection.method)
         if progress_cb:
             progress_cb("Z-projection", 0, 1, "Applying Z-projection...")
         ds = z_project_dataset(
@@ -122,6 +140,7 @@ def _run_tile(
     if cfg.tile:
         from microProfiler.preprocessing.tile_splitter import tile_dataset
 
+        log.debug("Tile: %dx%d", cfg.tile.tile_width, cfg.tile.tile_height)
         if progress_cb:
             progress_cb("Tile", 0, 1, "Splitting tiles...")
         ds = tile_dataset(
@@ -153,6 +172,10 @@ def _run_segment(
         name = seg_cfg.object_name
         if not name:
             continue
+        log.debug(
+            "Segment: object=%s, model=%s, chan1=%s, chan2=%s, diameter=%s",
+            name, seg_cfg.model_name, seg_cfg.chan1, seg_cfg.chan2, seg_cfg.diameter,
+        )
         if progress_cb:
             progress_cb(f"Segment ({name})", 0, 1, f"Starting segmentation ({name})...")
         ds = segment_dataset(
@@ -187,6 +210,12 @@ def _run_profile(
 
     db_path = root_dir / db_name
     intensity_cols = ds.intensity_colnames
+    log.debug(
+        "Profile: image_channels=%s, object_mask=%s, db=%s",
+        profiling.image_channels,
+        profiling.object_mask_name,
+        db_path,
+    )
 
     if profiling.image_channels is not None:
         from microProfiler.profiling.image_profiler import profile_images
@@ -289,6 +318,7 @@ def run_step(
     log = setup_logging(log_file=log_file, clear_existing=False)
     log.info("Running step: %s", step_name)
     root_dir = cfg.output_dir or cfg.input_dir
+    log.debug("Step '%s': root_dir=%s, db_name=%s", step_name, root_dir, db_name)
 
     fn = _STEP_FUNCTIONS.get(step_name)
     if fn is None:
@@ -350,6 +380,17 @@ def run_pipeline(
     log.info("Pipeline start — input: %s", cfg.input_dir)
 
     root_dir = cfg.output_dir or cfg.input_dir
+    log.debug("Output dir: %s, DB: %s", root_dir, db_name)
+    log.debug(
+        "Steps enabled: convert=%s, resize=%s, basic=%s, zproject=%s, tile=%s, segment=%s, profile=%s",
+        cfg.convert is not None,
+        cfg.resize is not None,
+        cfg.basic_correction is not None,
+        cfg.z_projection is not None,
+        cfg.tile is not None,
+        bool(cfg.segmentations),
+        cfg.profiling is not None,
+    )
 
     if ds is None:
         ds = _run_convert(cfg, root_dir, progress_cb)

@@ -7,10 +7,23 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+_DEFAULT_LEVEL: int = logging.INFO
+
+
+def set_default_logging_level(level: int) -> None:
+    """Set the default logging level for subsequent setup_logging calls.
+
+    When set, all future ``setup_logging()`` invocations (including those
+    with ``clear_existing=False``) will use this level unless an explicit
+    level is passed.
+    """
+    global _DEFAULT_LEVEL
+    _DEFAULT_LEVEL = level
+
 
 def setup_logging(
     name: str = "microProfiler",
-    level: int = logging.INFO,
+    level: Optional[int] = None,
     log_file: Path | None = None,
     qt_handler: Optional[logging.Handler] = None,
     clear_existing: bool = True,
@@ -21,8 +34,9 @@ def setup_logging(
     ----------
     name : str
         Logger name.
-    level : int
-        Logging level (e.g., logging.DEBUG).
+    level : int, optional
+        Logging level (e.g., logging.DEBUG). Defaults to the level set by
+        ``set_default_logging_level()``, or ``logging.INFO``.
     log_file : Path, optional
         If set, also write logs to this file.
     qt_handler : logging.Handler, optional
@@ -35,6 +49,9 @@ def setup_logging(
     logging.Logger
         Configured logger.
     """
+    if level is None:
+        level = _DEFAULT_LEVEL
+
     logger = logging.getLogger(name)
     logger.setLevel(level)
 

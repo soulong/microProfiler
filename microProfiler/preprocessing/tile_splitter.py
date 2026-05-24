@@ -96,6 +96,7 @@ def tile_dataset(
 
     # Validate image size unconditionally
     img_shape = ds.img_shape
+    log.debug("tile_dataset: tile=%dx%d, inplace=%s, image_shape=%s", tile_w, tile_h, inplace, img_shape)
     if img_shape is None and not ds.metadata.empty:
         row = ds.metadata.iloc[0]
         img_dir = row["directory"]

@@ -107,6 +107,7 @@ def z_project_dataset(
 
     grouped = metadata.groupby(group_cols, sort=False)
     all_groups = list(grouped)
+    log.debug("z_project_dataset: method=%s, inplace=%s, groups=%d", method, inplace, len(all_groups))
 
     all_source_set: set[Path] = set()
 

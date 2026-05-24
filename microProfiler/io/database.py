@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 import threading
 from pathlib import Path
 from typing import Literal, Union
 
 import pandas as pd
+
+log = logging.getLogger(__name__)
 
 
 class Database:
@@ -21,6 +24,7 @@ class Database:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._local = threading.local()
+        log.debug("Database: %s", self.db_path)
 
     def _get_conn(self) -> sqlite3.Connection:
         """Get or create a thread-local connection."""
@@ -43,6 +47,7 @@ class Database:
         if_exists: Literal["fail", "replace", "append"] = "replace",
     ) -> None:
         """Write a DataFrame to a table."""
+        log.debug("save_table: %s (%d rows, %d cols)", table_name, len(df), len(df.columns))
         conn = self._get_conn()
         df_copy = df.copy()
         for col in df_copy.columns:
