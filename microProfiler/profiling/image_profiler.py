@@ -7,6 +7,7 @@ optionally object-area statistics via thresholding.
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
@@ -92,6 +93,21 @@ def measure_single_image(
     return result
 
 
+def _process_one_image(
+    ds: ImageDataset,
+    idx: int,
+    channels: List[str],
+    thresholds: Optional[Dict[str, float]],
+) -> pd.DataFrame:
+    """Profile a single image — extracted for parallel execution."""
+    image_data, _ = ds.get_imageset(idx)
+    row = ds.metadata.iloc[idx]
+    excluded = set(ds.intensity_colnames) | set(ds.mask_colnames)
+    meta = {k: v for k, v in row.to_dict().items() if k not in excluded}
+    measures = measure_single_image(image_data, ds.intensity_colnames, channels, thresholds)
+    return pd.DataFrame([{**meta, **measures}])
+
+
 def profile_images(
     ds: ImageDataset,
     channels: Optional[List[str]] = None,
@@ -99,6 +115,7 @@ def profile_images(
     db_path: Union[str, Path, None] = None,
     table_name: str = "image",
     progress_cb: Optional[ProgressCB] = None,
+    n_workers: int = 1,
 ) -> Optional[pd.DataFrame]:
     """Profile all images in a dataset at the whole-image level.
 
@@ -114,6 +131,8 @@ def profile_images(
         SQLite output path.  ``None`` returns a DataFrame.
     table_name : str
         Table name for DB output.
+    n_workers : int
+        Number of worker threads (1 = sequential).
 
     Returns
     -------
@@ -122,22 +141,34 @@ def profile_images(
     """
     channels = channels or ds.intensity_colnames
     log.debug(
-        "profile_images: channels=%s, thresholds=%s, db=%s, table=%s, count=%d",
-        channels, thresholds, db_path, table_name, len(ds),
+        "profile_images: channels=%s, thresholds=%s, db=%s, table=%s, count=%d, workers=%d",
+        channels, thresholds, db_path, table_name, len(ds), n_workers,
     )
     results: List[pd.DataFrame] = []
+    n_total = len(ds)
 
-    for idx in tqdm(range(len(ds)), desc="Image profiling", unit="img"):
-        if progress_cb:
-            progress_cb("Profile Image", idx, len(ds), f"Row {idx}")
-        image_data, _ = ds.get_imageset(idx)
-        row = ds.metadata.iloc[idx]
-
-        excluded = set(ds.intensity_colnames) | set(ds.mask_colnames)
-        meta = {k: v for k, v in row.to_dict().items() if k not in excluded}
-        measures = measure_single_image(image_data, ds.intensity_colnames, channels, thresholds)
-        merged = {**meta, **measures}
-        results.append(pd.DataFrame([merged]))
+    if n_workers == 1:
+        for idx in tqdm(range(n_total), desc="Image profiling", unit="img"):
+            if progress_cb:
+                progress_cb("Profile Image", idx, n_total, f"Row {idx}")
+            results.append(_process_one_image(ds, idx, channels, thresholds))
+    else:
+        completed = 0
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            futures = {
+                executor.submit(_process_one_image, ds, idx, channels, thresholds): idx
+                for idx in range(n_total)
+            }
+            for future in tqdm(as_completed(futures), total=n_total, desc="Image profiling", unit="img"):
+                idx = futures[future]
+                try:
+                    results.append(future.result())
+                    completed += 1
+                    if progress_cb:
+                        progress_cb("Profile Image", completed, n_total, f"Row {idx}")
+                except Exception:
+                    log.exception("Image profiling failed for row %d", idx)
+                    raise
 
     if not results:
         return None

@@ -210,11 +210,13 @@ def _run_profile(
 
     db_path = root_dir / db_name
     intensity_cols = ds.intensity_colnames
+    n_workers = profiling.n_workers
     log.debug(
-        "Profile: image_channels=%s, object_mask=%s, db=%s",
+        "Profile: image_channels=%s, object_mask=%s, db=%s, workers=%d",
         profiling.image_channels,
         profiling.object_mask_name,
         db_path,
+        n_workers,
     )
 
     if profiling.image_channels is not None:
@@ -226,7 +228,7 @@ def _run_profile(
             img_kwargs["thresholds"] = profiling.image_thresholds
         if progress_cb:
             progress_cb("Profile Image", 0, 1, "Image profiling...")
-        profile_images(ds, channels=channels, **img_kwargs)
+        profile_images(ds, channels=channels, n_workers=n_workers, **img_kwargs)
         if progress_cb:
             progress_cb("Profile Image", 1, 1, "Image profiling complete")
 
@@ -282,6 +284,7 @@ def _run_profile(
             db_path=db_path,
             table_name=mask_name,
             progress_cb=progress_cb,
+            n_workers=n_workers,
             **obj_kwargs,
         )
         if progress_cb:

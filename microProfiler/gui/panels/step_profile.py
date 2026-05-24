@@ -41,6 +41,20 @@ class ProfileStepPanel(BaseStepPanel):
         inner_layout = QVBoxLayout(inner)
         inner_layout.setContentsMargins(0, 0, 0, 0)
 
+        # ── General profiling settings ───────────────────────────────
+        general_layout = QHBoxLayout()
+        general_layout.setContentsMargins(0, 0, 0, 0)
+        general_layout.addWidget(QLabel("Worker Threads:"))
+        self._n_workers = QSpinBox()
+        self._n_workers.setRange(1, 64)
+        self._n_workers.setValue(1)
+        self._n_workers.setToolTip(
+            "Number of worker threads for parallel profiling (1 = sequential)"
+        )
+        general_layout.addWidget(self._n_workers)
+        general_layout.addStretch()
+        inner_layout.addLayout(general_layout)
+
         # ── Image-level Profiling ────────────────────────────────────
         image_group = QGroupBox("Image-level Profiling")
         image_layout = QVBoxLayout(image_group)
@@ -183,9 +197,10 @@ class ProfileStepPanel(BaseStepPanel):
         scroll.setWidget(inner)
         self._controls_layout.addWidget(scroll)
 
-        for w in (self._radial_bins, self._gran_scales, self._gran_subsample,
-                  self._gran_element, self._glcm_distances, self._glcm_levels,
-                  self._glcm_angles, self._object_mask, self._parent_mask):
+        for w in (self._n_workers, self._radial_bins, self._gran_scales,
+                  self._gran_subsample, self._gran_element, self._glcm_distances,
+                  self._glcm_levels, self._glcm_angles, self._object_mask,
+                  self._parent_mask):
             self._wire_param_signal(w)
 
     def _remove_placeholder(self, layout, placeholder_attr):
@@ -312,6 +327,8 @@ class ProfileStepPanel(BaseStepPanel):
             return
 
         # Scalar params
+        if "n_workers" in section:
+            self._n_workers.setValue(int(section["n_workers"]))
         if "object_radial_bins" in section:
             self._radial_bins.setValue(int(section["object_radial_bins"]))
         if "object_granularity_scales" in section and section["object_granularity_scales"]:
@@ -416,6 +433,7 @@ class ProfileStepPanel(BaseStepPanel):
 
     def save_to_settings(self, settings) -> dict:
         params = {
+            "n_workers": self._n_workers.value(),
             "radial_bins": self._radial_bins.value(),
             "gran_scales": self._gran_scales.text(),
             "gran_subsample": self._gran_subsample.value(),
@@ -442,6 +460,11 @@ class ProfileStepPanel(BaseStepPanel):
         stored = settings.load_params(self.step_name)
         if not stored:
             return
+        if "n_workers" in stored:
+            try:
+                self._n_workers.setValue(int(stored["n_workers"]))
+            except (ValueError, TypeError):
+                pass
         if "radial_bins" in stored:
             try:
                 self._radial_bins.setValue(int(stored["radial_bins"]))
@@ -511,6 +534,7 @@ class ProfileStepPanel(BaseStepPanel):
     def build_config_section(self) -> dict:
         image_ch = self.get_checked(self._image_ch_cbs) or None
         result = {
+            "n_workers": self._n_workers.value(),
             "image_channels": image_ch,
             "image_thresholds": self.get_thresholds(),
         }

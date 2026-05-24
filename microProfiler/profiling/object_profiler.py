@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
@@ -355,6 +356,41 @@ def measure_objects(
     return df
 
 
+def _process_one_object(
+    ds: ImageDataset,
+    idx: int,
+    mask_name: str,
+    parent_mask_name: Optional[str],
+    intensity_channels: Optional[List[str]],
+    correlation_pairs: Optional[List[Tuple[str, str]]],
+    measure_kwargs: Dict[str, Any],
+) -> Optional[pd.DataFrame]:
+    """Profile objects in a single image — extracted for parallel execution."""
+    row = ds.metadata.iloc[idx]
+    meta = {
+        k: v for k, v in row.to_dict().items()
+        if k not in ds.intensity_colnames and k not in ds.mask_colnames
+    }
+    image_data, mask_data = ds.get_imageset(idx)
+    mask = mask_data.get(mask_name)
+    if mask is None:
+        return None
+    parent_mask = None
+    if parent_mask_name is not None:
+        parent_mask = mask_data.get(parent_mask_name)
+    return measure_objects(
+        mask=mask,
+        img=image_data,
+        channel_names=ds.intensity_colnames,
+        metadata_row=meta,
+        parent_mask=parent_mask,
+        parent_mask_name=parent_mask_name or "Parent",
+        intensity_channels=intensity_channels,
+        correlation_pairs=correlation_pairs,
+        **measure_kwargs,
+    )
+
+
 def profile_objects(
     ds: ImageDataset,
     mask_name: str,
@@ -369,6 +405,7 @@ def profile_objects(
     db_path: Union[str, Path, None] = None,
     table_name: Optional[str] = None,
     progress_cb: Optional[ProgressCB] = None,
+    n_workers: int = 1,
     **extra_kwargs,
 ) -> Optional[pd.DataFrame]:
     """Profile all objects in a dataset for a given mask.
@@ -407,6 +444,8 @@ def profile_objects(
     progress_cb : callable or None, optional
         Optional callback ``(step_name, current, total, message)``
         for GUI progress tracking.
+    n_workers : int
+        Number of worker threads (1 = sequential).
     **extra_kwargs : dict, optional
         Extra keyword arguments forwarded to ``measure_objects()``.
         Use to override ``granularity_kwargs``, ``glcm_kwargs``,
@@ -420,68 +459,73 @@ def profile_objects(
     """
     table_name = table_name or mask_name
     log.debug(
-        "profile_objects: mask=%s, parent=%s, intensity_channels=%s, db=%s, table=%s, count=%d",
-        mask_name, parent_mask_name, intensity_channels, db_path, table_name, len(ds),
+        "profile_objects: mask=%s, parent=%s, intensity_channels=%s, db=%s, table=%s, count=%d, workers=%d",
+        mask_name, parent_mask_name, intensity_channels, db_path, table_name, len(ds), n_workers,
     )
-    results: List[pd.DataFrame] = []
 
-    for idx in tqdm(range(len(ds)), desc=f"Profiling {mask_name}", unit="img"):
-        if progress_cb:
-            progress_cb(f"Profile {mask_name}", idx, len(ds), f"Row {idx}")
-        row = ds.metadata.iloc[idx]
-        meta = {
-            k: v for k, v in row.to_dict().items()
-            if k not in ds.intensity_colnames and k not in ds.mask_colnames
+    # ── Pre-build measure_kwargs (constant across all images) ──
+    measure_kwargs: Dict[str, Any] = {}
+
+    if radial_channels is not None:
+        measure_kwargs["radial_channels"] = radial_channels
+        measure_kwargs["radial_kwargs"] = {"nbins": radial_n_bins}
+
+    if granularity_channels is not None:
+        measure_kwargs["granularity_channels"] = granularity_channels
+        measure_kwargs["granularity_kwargs"] = {
+            "scales": list(range(5)),
+            "subsample_size": 0.25,
+            "element_size": 10,
         }
-        image_data, mask_data = ds.get_imageset(idx)
 
-        mask = mask_data.get(mask_name)
-        if mask is None:
-            continue
+    if glcm_channels is not None:
+        measure_kwargs["glcm_channels"] = glcm_channels
+        measure_kwargs["glcm_kwargs"] = {
+            "distances": glcm_distances or [1, 2, 3],
+        }
 
-        parent_mask = None
-        if parent_mask_name is not None:
-            parent_mask = mask_data.get(parent_mask_name)
+    for k, v in extra_kwargs.items():
+        if k in measure_kwargs and isinstance(measure_kwargs[k], dict) and isinstance(v, dict):
+            measure_kwargs[k].update(v)
+        else:
+            measure_kwargs[k] = v
 
-        measure_kwargs: Dict = {}
+    results: List[pd.DataFrame] = []
+    n_total = len(ds)
 
-        if radial_channels is not None:
-            measure_kwargs["radial_channels"] = radial_channels
-            measure_kwargs["radial_kwargs"] = {"nbins": radial_n_bins}
-
-        if granularity_channels is not None:
-            measure_kwargs["granularity_channels"] = granularity_channels
-            measure_kwargs["granularity_kwargs"] = {
-                "scales": list(range(5)),
-                "subsample_size": 0.25,
-                "element_size": 10,
+    if n_workers == 1:
+        for idx in tqdm(range(n_total), desc=f"Profiling {mask_name}", unit="img"):
+            if progress_cb:
+                progress_cb(f"Profile {mask_name}", idx, n_total, f"Row {idx}")
+            result = _process_one_object(
+                ds, idx, mask_name, parent_mask_name,
+                intensity_channels, correlation_pairs, measure_kwargs,
+            )
+            if result is not None:
+                results.append(result)
+    else:
+        completed = 0
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            futures = {
+                executor.submit(
+                    _process_one_object, ds, idx, mask_name,
+                    parent_mask_name, intensity_channels,
+                    correlation_pairs, measure_kwargs,
+                ): idx
+                for idx in range(n_total)
             }
-
-        if glcm_channels is not None:
-            measure_kwargs["glcm_channels"] = glcm_channels
-            measure_kwargs["glcm_kwargs"] = {
-                "distances": glcm_distances or [1, 2, 3],
-            }
-
-        # Merge extra_kwargs (overrides from caller via pipeline.py)
-        for k, v in extra_kwargs.items():
-            if k in measure_kwargs and isinstance(measure_kwargs[k], dict) and isinstance(v, dict):
-                measure_kwargs[k].update(v)
-            else:
-                measure_kwargs[k] = v
-
-        result_df = measure_objects(
-            mask=mask,
-            img=image_data,
-            channel_names=ds.intensity_colnames,
-            metadata_row=meta,
-            parent_mask=parent_mask,
-            parent_mask_name=parent_mask_name or "Parent",
-            intensity_channels=intensity_channels,
-            correlation_pairs=correlation_pairs,
-            **measure_kwargs,
-        )
-        results.append(result_df)
+            for future in tqdm(as_completed(futures), total=n_total, desc=f"Profiling {mask_name}", unit="img"):
+                idx = futures[future]
+                try:
+                    result = future.result()
+                    if result is not None:
+                        results.append(result)
+                    completed += 1
+                    if progress_cb:
+                        progress_cb(f"Profile {mask_name}", completed, n_total, f"Row {idx}")
+                except Exception:
+                    log.exception("Object profiling failed for row %d", idx)
+                    raise
 
     if not results:
         return None

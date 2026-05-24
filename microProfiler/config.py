@@ -159,6 +159,10 @@ class ProfilingConfig(BaseModel):
     correlation_pairs: Optional[List[List[str]]] = Field(
         None, description="Channel pairs for correlation",
     )
+    n_workers: int = Field(
+        1, ge=1, le=64,
+        description="Number of worker threads for parallel profiling (1 = sequential)",
+    )
 
 
 def load_config(

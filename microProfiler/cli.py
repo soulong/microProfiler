@@ -93,6 +93,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--db", type=str, default="results.db",
         help="Output SQLite database name",
     )
+    run_parser.add_argument(
+        "--workers", "-w", type=int, default=None, metavar="N",
+        help="Number of worker threads for parallel profiling (default: 1, sequential)",
+    )
 
     # ── convert ─────────────────────────────────────────────────────────
     conv_parser = sub.add_parser(
@@ -206,7 +210,7 @@ def main(argv: list[str] | None = None) -> int:
             cfg.segmentation = seg
 
         # ── Profiling config ────────────────────────────────────────────
-        if args.profile_image or args.profile_object:
+        if args.profile_image or args.profile_object or args.workers is not None:
             prof = cfg.profiling
             if isinstance(prof, BaseModel):
                 prof = prof.model_dump()
@@ -216,6 +220,8 @@ def main(argv: list[str] | None = None) -> int:
                 prof["image_channels"] = None
             if args.profile_object:
                 prof["object_mask_name"] = args.profile_object
+            if args.workers is not None:
+                prof["n_workers"] = args.workers
             cfg.profiling = prof
 
         run_pipeline(cfg, db_name=args.db, log_file=args.log_file)
