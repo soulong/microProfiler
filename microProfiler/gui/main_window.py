@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
     QFormLayout,
-    QFrame,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -21,7 +20,8 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QSplitter,
-    QTabWidget,
+    QStackedWidget,
+    QStatusBar,
     QVBoxLayout,
     QWidget,
 )
@@ -33,6 +33,7 @@ from microProfiler.gui.session import DictSettings, SessionFile, detect_disk_sta
 from microProfiler.gui.pipeline_controller import PipelineController
 from microProfiler.gui.workers.preview_worker import PreviewWorker
 from microProfiler.gui.state import PipelineState
+from microProfiler.gui.sidebar import Sidebar
 from microProfiler.gui.panels import (
     BaSiCStepPanel, ConvertStepPanel, ProfileStepPanel,
     ResizeStepPanel, SegmentStepPanel, TileStepPanel, ZProjectStepPanel,
@@ -78,13 +79,19 @@ class MainWindow(QMainWindow):
     def _build_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
-        main_layout = QVBoxLayout(central)
+        main_layout = QHBoxLayout(central)
         main_layout.setSpacing(0)
+        main_layout.setContentsMargins(0, 0, 0, 0)
 
-        # ── Tab widget ─────────────────────────────────────────────────
-        self._tabs = QTabWidget()
-        self._tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        main_layout.addWidget(self._tabs, 1)
+        # ── Sidebar ────────────────────────────────────────────────────
+        self._sidebar = Sidebar()
+        main_layout.addWidget(self._sidebar)
+
+        # ── Right content area ─────────────────────────────────────────
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        right_layout.setSpacing(0)
+        right_layout.setContentsMargins(0, 0, 0, 0)
 
         # ── Create step panels ─────────────────────────────────────────
         self._convert_panel = ConvertStepPanel(self._state)
@@ -106,9 +113,13 @@ class MainWindow(QMainWindow):
             self._zproject_panel, self._tile_panel,
         ]
 
-        # ── Tab 1: Convert (50/50 splitter) ────────────────────────────
-        convert_tab = QWidget()
-        convert_layout = QVBoxLayout(convert_tab)
+        # ── QStackedWidget ─────────────────────────────────────────────
+        self._stack = QStackedWidget()
+        self._stack.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        # ── Page 0: Convert ────────────────────────────────────────────
+        convert_page = QWidget()
+        convert_layout = QVBoxLayout(convert_page)
 
         self._convert_splitter = QSplitter()
         self._convert_splitter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -116,12 +127,13 @@ class MainWindow(QMainWindow):
         # --- Left panel ---
         left_panel = QWidget()
         left_layout = QVBoxLayout(left_panel)
-        left_layout.setContentsMargins(4, 4, 4, 4)
+        left_layout.setContentsMargins(12, 12, 6, 12)
 
         input_group = QGroupBox("Input")
         input_form = QFormLayout(input_group)
         self._input_dir = QLineEdit()
         self._input_browse = QPushButton("Browse...")
+        self._input_browse.setProperty("class", "secondary")
         input_row = QHBoxLayout()
         input_row.addWidget(self._input_dir)
         input_row.addWidget(self._input_browse)
@@ -129,12 +141,10 @@ class MainWindow(QMainWindow):
         self._format_combo.addItems(["operetta", "mica"])
         self._output_dir = QLineEdit()
         self._output_browse = QPushButton("Browse...")
+        self._output_browse.setProperty("class", "secondary")
         output_row = QHBoxLayout()
         output_row.addWidget(self._output_dir)
         output_row.addWidget(self._output_browse)
-        self._output_default_label = QLabel("(default)")
-        self._output_default_label.setStyleSheet("color: #888;")
-        output_row.addWidget(self._output_default_label)
         input_form.addRow("Input directory:", input_row)
         input_form.addRow("Format:", self._format_combo)
         input_form.addRow("Output directory:", output_row)
@@ -145,8 +155,8 @@ class MainWindow(QMainWindow):
 
         # --- Right panel ---
         right_panel = QWidget()
-        right_layout = QVBoxLayout(right_panel)
-        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout_panel = QVBoxLayout(right_panel)
+        right_layout_panel.setContentsMargins(6, 12, 12, 12)
 
         self._convert_info_group = QGroupBox("Dataset Info")
         self._convert_info_layout = QFormLayout(self._convert_info_group)
@@ -154,19 +164,21 @@ class MainWindow(QMainWindow):
             "Run conversion to see dataset information."
         )
         self._convert_info_label.setWordWrap(True)
+        self._convert_info_label.setProperty("class", "placeholder")
         self._convert_info_layout.addRow(self._convert_info_label)
-        right_layout.addWidget(self._convert_info_group)
-        right_layout.addStretch()
+        right_layout_panel.addWidget(self._convert_info_group)
+        right_layout_panel.addStretch()
 
         self._convert_splitter.addWidget(left_panel)
         self._convert_splitter.addWidget(right_panel)
         self._convert_splitter.setSizes([500, 500])
         convert_layout.addWidget(self._convert_splitter, 1)
-        self._tabs.addTab(convert_tab, "Convert")
+        self._stack.addWidget(convert_page)
 
-        # ── Tab 2: Pre-process ─────────────────────────────────────────
-        pre_tab = QWidget()
-        pre_layout = QVBoxLayout(pre_tab)
+        # ── Page 1: Pre-process ────────────────────────────────────────
+        pre_page = QWidget()
+        pre_layout = QVBoxLayout(pre_page)
+        pre_layout.setContentsMargins(12, 12, 12, 12)
 
         pre_scroll = QScrollArea()
         pre_scroll.setWidgetResizable(True)
@@ -174,94 +186,86 @@ class MainWindow(QMainWindow):
         pre_scroll_layout = QVBoxLayout(pre_scroll_inner)
         for p in self._preprocessing_steps:
             pre_scroll_layout.addWidget(p)
-        self._run_pre_btn = QPushButton("▶ Run Preprocessing")
-        self._run_pre_btn.setStyleSheet("font-weight: bold; padding: 4px 16px;")
+        self._run_pre_btn = QPushButton("Run Preprocessing")
+        self._run_pre_btn.setProperty("class", "primary")
         pre_scroll_layout.addWidget(self._run_pre_btn)
         pre_scroll_layout.addStretch()
         pre_scroll.setWidget(pre_scroll_inner)
         pre_layout.addWidget(pre_scroll, 1)
-        self._tabs.addTab(pre_tab, "Pre-process")
+        self._stack.addWidget(pre_page)
 
-        # ── Tab 3: Segmentation ────────────────────────────────────────
-        seg_tab = QWidget()
-        seg_layout = QVBoxLayout(seg_tab)
+        # ── Page 2: Segmentation ───────────────────────────────────────
+        seg_page = QWidget()
+        seg_layout = QVBoxLayout(seg_page)
+        seg_layout.setContentsMargins(12, 12, 12, 12)
 
         seg_scroll = QScrollArea()
         seg_scroll.setWidgetResizable(True)
         seg_scroll.setWidget(self._segment_panel)
         seg_layout.addWidget(seg_scroll, 1)
 
-        self._run_seg_btn = QPushButton("▶ Run Segmentation")
-        self._run_seg_btn.setStyleSheet("font-weight: bold; padding: 6px 20px;")
+        self._run_seg_btn = QPushButton("Run Segmentation")
+        self._run_seg_btn.setProperty("class", "primary")
         seg_layout.addWidget(self._run_seg_btn)
-        self._tabs.addTab(seg_tab, "Segmentation")
+        self._stack.addWidget(seg_page)
 
-        # ── Tab 4: Profiling ───────────────────────────────────────────
-        prof_tab = QWidget()
-        prof_layout = QVBoxLayout(prof_tab)
+        # ── Page 3: Profiling ──────────────────────────────────────────
+        prof_page = QWidget()
+        prof_layout = QVBoxLayout(prof_page)
+        prof_layout.setContentsMargins(12, 12, 12, 12)
 
         prof_scroll = QScrollArea()
         prof_scroll.setWidgetResizable(True)
         prof_scroll.setWidget(self._profile_panel)
         prof_layout.addWidget(prof_scroll, 1)
 
-        self._run_prof_btn = QPushButton("▶ Run Profiling")
-        self._run_prof_btn.setStyleSheet("font-weight: bold; padding: 6px 20px;")
+        self._run_prof_btn = QPushButton("Run Profiling")
+        self._run_prof_btn.setProperty("class", "primary")
         prof_layout.addWidget(self._run_prof_btn)
-        self._tabs.addTab(prof_tab, "Profiling")
+        self._stack.addWidget(prof_page)
 
-        # ── Global bottom bar ──────────────────────────────────────────
-        separator = QFrame()
-        separator.setFrameShape(QFrame.HLine)
-        separator.setFrameShadow(QFrame.Sunken)
-        main_layout.addWidget(separator)
+        right_layout.addWidget(self._stack, 1)
 
-        bottom = QWidget()
-        bottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        bottom_layout = QVBoxLayout(bottom)
-        bottom_layout.setContentsMargins(8, 4, 8, 4)
-        bottom_layout.setSpacing(4)
-
-        # Buttons row
-        btn_row = QHBoxLayout()
-        self._load_config_btn = QPushButton("Load Config")
-        self._reset_all_btn = QPushButton("Reset All")
-        btn_row.addWidget(self._load_config_btn)
-        btn_row.addWidget(self._reset_all_btn)
-        btn_row.addStretch()
-        self._run_all_btn = QPushButton("▶ Run All Pipeline")
-        self._run_all_btn.setStyleSheet("font-weight: bold; padding: 6px 20px;")
-        btn_row.addWidget(self._run_all_btn)
-        bottom_layout.addLayout(btn_row)
-
-        # Global progress bar
-        self._global_progress = ProgressPanel()
-        bottom_layout.addWidget(self._global_progress)
-
-        # Log row: status line + toggle button
-        log_row = QHBoxLayout()
-        self._log_label = QLabel("")
-        self._log_label.setStyleSheet("color: #555;")
-        log_row.addWidget(self._log_label, 1)
-        self._show_log_btn = QPushButton("Show Log")
-        self._show_log_btn.setCheckable(True)
-        self._show_log_btn.setChecked(False)
-        log_row.addWidget(self._show_log_btn)
-        bottom_layout.addLayout(log_row)
-
-        # Expandable log view (hidden by default)
+        # ── Log view (hidden by default) ───────────────────────────────
         self._log_view = QPlainTextEdit()
         self._log_view.setReadOnly(True)
         self._log_view.setMaximumBlockCount(1000)
         self._log_view.setVisible(False)
         self._log_view.setMaximumHeight(200)
-        bottom_layout.addWidget(self._log_view)
+        self._log_view.setProperty("class", "log-panel")
+        right_layout.addWidget(self._log_view)
 
-        main_layout.addWidget(bottom)
+        main_layout.addWidget(right_widget, 1)
+
+        # ── QStatusBar ─────────────────────────────────────────────────
+        status_bar = QStatusBar()
+        self.setStatusBar(status_bar)
+
+        self._run_all_btn = QPushButton("Run All")
+        self._run_all_btn.setProperty("class", "primary")
+        self._global_progress = ProgressPanel(compact=True)
+        self._show_log_btn = QPushButton("Log")
+        self._show_log_btn.setCheckable(True)
+        self._show_log_btn.setChecked(False)
+        self._show_log_btn.setProperty("class", "secondary")
+        self._load_config_btn = QPushButton("Load Config")
+        self._load_config_btn.setProperty("class", "secondary")
+        self._reset_all_btn = QPushButton("Reset All")
+        self._reset_all_btn.setProperty("class", "secondary")
+        self._log_label = QLabel("")
+        self._log_label.setProperty("class", "muted")
+        self._log_label.setMaximumWidth(200)
+
+        status_bar.addWidget(self._run_all_btn)
+        status_bar.addWidget(self._global_progress, 1)
+        status_bar.addPermanentWidget(self._show_log_btn)
+        status_bar.addPermanentWidget(self._load_config_btn)
+        status_bar.addPermanentWidget(self._reset_all_btn)
 
     # ── Signal connections ────────────────────────────────────────────────
 
     def _connect_signals(self):
+        self._sidebar.navigation_changed.connect(self._on_navigation_changed)
         self._input_browse.clicked.connect(self._browse_input)
         self._output_browse.clicked.connect(self._browse_output)
         self._output_dir.textChanged.connect(self._on_output_changed)
@@ -299,6 +303,11 @@ class MainWindow(QMainWindow):
         # Sync segmentation object names to profiling mask dropdowns
         self._segment_panel.parameter_changed.connect(self._ctrl._sync_seg_masks_to_profiling)
 
+    def _on_navigation_changed(self, page_id: str) -> None:
+        index_map = {"convert": 0, "preprocess": 1, "segment": 2, "profile": 3}
+        if page_id in index_map:
+            self._stack.setCurrentIndex(index_map[page_id])
+
     # ── Logging ────────────────────────────────────────────────────────────
 
     def _on_log_message(self, message: str) -> None:
@@ -321,17 +330,9 @@ class MainWindow(QMainWindow):
         if path:
             self._output_dir.setText(path)
             self._output_manually_set = True
-        self._update_output_label()
 
     def _on_output_changed(self) -> None:
         self._output_manually_set = True
-        self._update_output_label()
-
-    def _update_output_label(self) -> None:
-        in_path = Path(self._input_dir.text()) if self._input_dir.text() else None
-        out_path = Path(self._output_dir.text()) if self._output_dir.text() else None
-        is_default = in_path and out_path and in_path == out_path
-        self._output_default_label.setVisible(is_default)
 
     @staticmethod
     def _detect_format(path: Path) -> str:
@@ -488,13 +489,15 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _compact_widgets(widget, max_width: int = 200) -> None:
-        from PySide6.QtWidgets import QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox
+        from PySide6.QtWidgets import QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox, QAbstractSpinBox
         for child in widget.findChildren(QLineEdit):
             child.setMaximumWidth(max_width)
         for child in widget.findChildren(QSpinBox):
             child.setMaximumWidth(max_width)
+            child.setButtonSymbols(QAbstractSpinBox.NoButtons)
         for child in widget.findChildren(QDoubleSpinBox):
             child.setMaximumWidth(max_width)
+            child.setButtonSymbols(QAbstractSpinBox.NoButtons)
         for child in widget.findChildren(QComboBox):
             child.setMaximumWidth(max_width)
 
@@ -541,6 +544,8 @@ class MainWindow(QMainWindow):
 
     def _update_convert_info(self, ds) -> None:
         """Populate dataset info panel after conversion."""
+        self._convert_info_label.setProperty("class", "")
+        self._convert_info_label.style().polish(self._convert_info_label)
         n = len(ds)
         ch = ", ".join(ds.intensity_colnames) if ds.intensity_colnames else "—"
         shape = ds.img_shape
@@ -569,6 +574,8 @@ class MainWindow(QMainWindow):
     def _clear_convert_info(self) -> None:
         """Reset dataset info panel to placeholder."""
         self._convert_info_label.setText("Run conversion to see dataset information.")
+        self._convert_info_label.setProperty("class", "placeholder")
+        self._convert_info_label.style().polish(self._convert_info_label)
 
     # ── Config load / reset ─────────────────────────────────────────────
 

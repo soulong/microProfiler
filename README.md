@@ -1,4 +1,4 @@
-# microProfiler
+# microProfiler ![Version](https://img.shields.io/badge/version-0.9.2-blue)
 
 Microscopy image preprocessing, segmentation, and profiling pipeline for multi-well plate data.
 

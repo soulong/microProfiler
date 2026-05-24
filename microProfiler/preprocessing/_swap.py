@@ -54,6 +54,7 @@ class TempSwap:
         self._originals.extend(Path(p) for p in paths)
 
     def __enter__(self) -> TempSwap:
+        """Create the temp directory and return ``self``."""
         self.temp_dir.mkdir(parents=True, exist_ok=True)
         log.debug("TempSwap: created temp dir %s", self.temp_dir)
         return self
@@ -64,6 +65,7 @@ class TempSwap:
         exc_val: Optional[BaseException],
         exc_tb: Optional[object],
     ) -> bool:
+        """Clean up temp directory on error or perform the swap on success."""
         if exc_type is not None:
             self._cleanup_temp()
             return False

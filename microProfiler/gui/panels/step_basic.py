@@ -50,13 +50,16 @@ class BaSiCStepPanel(BaseStepPanel):
         row2 = QHBoxLayout()
         row2.addStretch()
         self._fit_btn = QPushButton("Fit Model")
+        self._fit_btn.setProperty("class", "secondary")
         row2.addWidget(self._fit_btn)
         self._pick_btn = QPushButton("Pick Random")
+        self._pick_btn.setProperty("class", "secondary")
         row2.addWidget(self._pick_btn)
         self._preview_btn = QPushButton("Preview Transform")
+        self._preview_btn.setProperty("class", "secondary")
         row2.addWidget(self._preview_btn)
         self._apply_btn = QPushButton("▶ Apply")
-        self._apply_btn.setStyleSheet("font-weight: bold; padding: 4px 16px;")
+        self._apply_btn.setProperty("class", "primary")
         row2.addWidget(self._apply_btn)
         self._controls_layout.addLayout(row2)
 
@@ -66,7 +69,9 @@ class BaSiCStepPanel(BaseStepPanel):
     def _build_preview(self):
         # Per-channel preview container: each row is chN: [raw] | [corrected] | [flatfield]
         self._preview_container = QVBoxLayout()
-        self._preview_container.addWidget(QLabel("Load a dataset and click Pick Random to preview"))
+        placeholder = QLabel("Load a dataset and click Pick Random to preview")
+        placeholder.setProperty("class", "placeholder")
+        self._preview_container.addWidget(placeholder)
         self._preview_layout.addLayout(self._preview_container)
 
     def set_preview_channels(self, channel_names):
@@ -79,13 +84,21 @@ class BaSiCStepPanel(BaseStepPanel):
             return
         for ch in channel_names:
             row = QHBoxLayout()
+            row.addStretch()
             row.addWidget(QLabel(f"{ch}:"))
             raw_tile = ChannelTile("raw", np.zeros((64, 64)))
+            raw_tile._viewer.setMinimumSize(80, 80)
+            raw_tile._viewer.setMaximumSize(120, 120)
             corr_tile = ChannelTile("corrected", np.zeros((64, 64)))
+            corr_tile._viewer.setMinimumSize(80, 80)
+            corr_tile._viewer.setMaximumSize(120, 120)
             ff_tile = ChannelTile("flatfield", np.zeros((64, 64)))
+            ff_tile._viewer.setMinimumSize(80, 80)
+            ff_tile._viewer.setMaximumSize(120, 120)
             row.addWidget(raw_tile)
             row.addWidget(corr_tile)
             row.addWidget(ff_tile)
+            row.addStretch()
             # Store refs for later update
             if not hasattr(self, "_channel_tiles"):
                 self._channel_tiles = {}

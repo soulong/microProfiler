@@ -125,22 +125,27 @@ class ImageDataset:
 
     @property
     def metadata(self) -> pd.DataFrame:
+        """Metadata DataFrame with one row per image."""
         return self._metadata
 
     @property
     def intensity_colnames(self) -> List[str]:
+        """Sorted list of intensity channel names."""
         return list(self._intensity_colnames)
 
     @property
     def mask_colnames(self) -> List[str]:
+        """Sorted list of mask column names."""
         return list(self._mask_colnames)
 
     @property
     def img_shape(self) -> Optional[tuple]:
+        """Spatial dimensions ``(H, W)`` of the first intensity image, or ``None``."""
         return self._img_shape
 
     @property
     def img_dtype(self) -> Optional[np.dtype]:
+        """NumPy dtype of the first intensity image, or ``None``."""
         return self._img_dtype
 
     def __len__(self) -> int:

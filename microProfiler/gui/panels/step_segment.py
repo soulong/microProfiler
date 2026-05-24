@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Callable, List, Optional
 
 import numpy as np
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -59,23 +60,18 @@ class SegmentBlockWidget(QWidget):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 8, 0, 8)
+        layout.setContentsMargins(0, 4, 0, 4)
+        layout.setSpacing(4)
 
-        # Separator line with Remove button at end
+        # Separator line
         sep_row = QHBoxLayout()
         sep = QFrame()
         sep.setFrameShape(QFrame.HLine)
         sep.setFrameShadow(QFrame.Sunken)
-        sep.setStyleSheet("margin: 4px 0;")
         sep_row.addWidget(sep)
-        self._remove_btn = QPushButton("✕ Remove")
-        self._remove_btn.setStyleSheet("color: #c00;")
-        sep_row.addWidget(self._remove_btn)
-        if self._on_remove:
-            self._remove_btn.clicked.connect(self._on_remove)
         layout.addLayout(sep_row)
 
-        # Row 1: Object name + Model + Browse
+        # Row 1: Object name + Model + Browse + Remove
         row1 = QHBoxLayout()
         row1.addWidget(QLabel("Object name:"))
         self._object_name = QLineEdit("cell")
@@ -86,8 +82,14 @@ class SegmentBlockWidget(QWidget):
         self._model_name.addItems(["cpsam", "cyto", "nuclei", "cyto2"])
         row1.addWidget(self._model_name)
         self._model_browse = QPushButton("Browse...")
+        self._model_browse.setProperty("class", "secondary")
         row1.addWidget(self._model_browse)
         row1.addStretch()
+        self._remove_btn = QPushButton("✕ Remove")
+        self._remove_btn.setProperty("class", "danger")
+        row1.addWidget(self._remove_btn)
+        if self._on_remove:
+            self._remove_btn.clicked.connect(self._on_remove)
         layout.addLayout(row1)
 
         # Row 2: Diameter + thresholds
@@ -127,7 +129,7 @@ class SegmentBlockWidget(QWidget):
                 row3.addWidget(cb)
         else:
             self._chan1_placeholder = QLabel("Load a dataset to configure")
-            self._chan1_placeholder.setStyleSheet("color: #888;")
+            self._chan1_placeholder.setProperty("class", "placeholder")
             row3.addWidget(self._chan1_placeholder)
         row3.addWidget(QLabel("Merge1:"))
         self._merge1 = QComboBox()
@@ -143,7 +145,7 @@ class SegmentBlockWidget(QWidget):
                 row3.addWidget(cb)
         else:
             self._chan2_placeholder = QLabel("Load a dataset to configure")
-            self._chan2_placeholder.setStyleSheet("color: #888;")
+            self._chan2_placeholder.setProperty("class", "placeholder")
             row3.addWidget(self._chan2_placeholder)
         row3.addWidget(QLabel("Merge2:"))
         self._merge2 = QComboBox()
@@ -156,34 +158,63 @@ class SegmentBlockWidget(QWidget):
         row4 = QHBoxLayout()
         row4.addStretch()
         self._pick_btn = QPushButton("Pick Random")
+        self._pick_btn.setProperty("class", "secondary")
         self._preview_btn = QPushButton("Preview Segment")
+        self._preview_btn.setProperty("class", "secondary")
         row4.addWidget(self._pick_btn)
         row4.addWidget(self._preview_btn)
         layout.addLayout(row4)
 
-        # Preview row
+        # Preview row — compact, top-aligned, no collapse when empty
         preview_row = QHBoxLayout()
+        preview_row.setSpacing(8)
+        preview_row.setContentsMargins(0, 0, 0, 0)
+        preview_row.setAlignment(Qt.AlignTop)
+        preview_row.addStretch()
+
         c1_col = QVBoxLayout()
-        c1_col.addWidget(QLabel("C1 (merged):"))
+        c1_col.setSpacing(0)
+        c1_col.setAlignment(Qt.AlignTop)
+        c1_label = QLabel("C1 (merged):")
+        c1_label.setAlignment(Qt.AlignCenter)
+        c1_label.setContentsMargins(0, 0, 0, 2)
+        c1_col.addWidget(c1_label)
         self._c1_view = ImageViewer()
-        self._c1_view.setMaximumSize(180, 180)
+        self._c1_view.setMinimumSize(0, 0)
+        self._c1_view.setMaximumSize(200, 200)
+        self._c1_view.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         c1_col.addWidget(self._c1_view)
         preview_row.addLayout(c1_col)
 
         c2_col = QVBoxLayout()
-        c2_col.addWidget(QLabel("C2 (merged):"))
+        c2_col.setSpacing(0)
+        c2_col.setAlignment(Qt.AlignTop)
+        c2_label = QLabel("C2 (merged):")
+        c2_label.setAlignment(Qt.AlignCenter)
+        c2_label.setContentsMargins(0, 0, 0, 2)
+        c2_col.addWidget(c2_label)
         self._c2_view = ImageViewer()
-        self._c2_view.setMaximumSize(180, 180)
+        self._c2_view.setMinimumSize(0, 0)
+        self._c2_view.setMaximumSize(200, 200)
+        self._c2_view.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         c2_col.addWidget(self._c2_view)
         preview_row.addLayout(c2_col)
 
         mask_col = QVBoxLayout()
-        mask_col.addWidget(QLabel("Mask:"))
+        mask_col.setSpacing(0)
+        mask_col.setAlignment(Qt.AlignTop)
+        mask_label = QLabel("Mask:")
+        mask_label.setAlignment(Qt.AlignCenter)
+        mask_label.setContentsMargins(0, 0, 0, 2)
+        mask_col.addWidget(mask_label)
         self._mask_view = ImageViewer()
-        self._mask_view.setMaximumSize(180, 180)
+        self._mask_view.setMinimumSize(0, 0)
+        self._mask_view.setMaximumSize(200, 200)
+        self._mask_view.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         mask_col.addWidget(self._mask_view)
         preview_row.addLayout(mask_col)
 
+        preview_row.addStretch()
         layout.addLayout(preview_row)
 
     def get_chan1(self) -> List[str]:
@@ -508,16 +539,25 @@ class SegmentStepPanel(BaseStepPanel):
 
     def set_preview_c1(self, block_index: int, arr: np.ndarray):
         if block_index < len(self._blocks):
-            self._blocks[block_index]._c1_view.set_image(arr)
+            block = self._blocks[block_index]
+            block._c1_view.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            block._c1_view.setMinimumSize(140, 140)
+            block._c1_view.set_image(arr)
 
     def set_preview_c2(self, block_index: int, arr: np.ndarray):
         if block_index < len(self._blocks):
-            self._blocks[block_index]._c2_view.set_image(arr)
+            block = self._blocks[block_index]
+            block._c2_view.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            block._c2_view.setMinimumSize(140, 140)
+            block._c2_view.set_image(arr)
 
     def set_preview_mask(self, block_index: int, mask: np.ndarray):
         if block_index < len(self._blocks):
+            block = self._blocks[block_index]
+            block._mask_view.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            block._mask_view.setMinimumSize(140, 140)
             qimg = _mask_to_colored_qimage(mask)
-            self._blocks[block_index]._mask_view.set_image(qimg)
+            block._mask_view.set_image(qimg)
 
     def load_config_section(self, sections: list) -> None:
         """Restore from a list of SegmentationConfig dicts."""

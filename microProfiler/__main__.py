@@ -6,6 +6,17 @@ import sys
 
 
 def main() -> int:
+    """Dispatch to GUI or CLI based on command-line arguments.
+
+    No arguments launches the PySide6 desktop GUI.  ``--version`` prints
+    the installed version, ``--help`` shows the CLI help screen.  ``run``
+    or ``convert`` subcommand delegates to the CLI.
+
+    Returns
+    -------
+    int
+        Exit code (0 for success, 1 for unknown arguments).
+    """
     debug_mode = "--debug" in sys.argv
 
     if "--version" in sys.argv:

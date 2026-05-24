@@ -50,6 +50,8 @@ def write_image(path: Union[str, Path], data: np.ndarray, **kwargs) -> None:
         Output file path.
     data : np.ndarray
         Image data to write.
+    **kwargs
+        Additional keyword arguments forwarded to ``tifffile.imwrite()``.
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)

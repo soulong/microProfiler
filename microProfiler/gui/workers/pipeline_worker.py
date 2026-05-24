@@ -23,7 +23,15 @@ class PipelineWorker(QObject):
         self._thread.started.connect(self._execute)
 
     def run(self, cfg: PipelineConfig, ds=None) -> None:
-        """Run the full pipeline. Pass pre-loaded dataset to skip disk loading."""
+        """Run the full pipeline in a background thread.
+
+        Parameters
+        ----------
+        cfg : PipelineConfig
+            Pipeline configuration.
+        ds : ImageDataset or None
+            Optional pre-loaded dataset to skip disk loading.
+        """
         self._cancelled = False
         self._cfg = cfg
         self._step_name = None
@@ -31,7 +39,17 @@ class PipelineWorker(QObject):
         self._thread.start()
 
     def run_step(self, cfg: PipelineConfig, step_name: str, ds=None) -> None:
-        """Run a single pipeline step. Pass pre-loaded dataset to skip disk loading."""
+        """Run a single pipeline step in a background thread.
+
+        Parameters
+        ----------
+        cfg : PipelineConfig
+            Pipeline configuration.
+        step_name : str
+            Name of the step to run.
+        ds : ImageDataset or None
+            Optional pre-loaded dataset to skip disk loading.
+        """
         self._cancelled = False
         self._cfg = cfg
         self._step_name = step_name
@@ -39,6 +57,7 @@ class PipelineWorker(QObject):
         self._thread.start()
 
     def cancel(self) -> None:
+        """Request cancellation of the running pipeline or step."""
         self._cancelled = True
 
     def _execute(self) -> None:

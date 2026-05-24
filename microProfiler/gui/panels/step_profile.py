@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFormLayout,
     QFrame,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -44,23 +45,22 @@ class ProfileStepPanel(BaseStepPanel):
         image_group = QGroupBox("Image-level Profiling")
         image_layout = QVBoxLayout(image_group)
 
-        self._image_ch_group = QWidget()
-        self._image_ch_layout = QHBoxLayout(self._image_ch_group)
-        self._image_ch_layout.setContentsMargins(0, 0, 0, 0)
-        self._image_ch_layout.addWidget(QLabel("Channels:"))
+        self._image_grid = QWidget()
+        self._image_grid_layout = QGridLayout(self._image_grid)
+        self._image_grid_layout.setContentsMargins(0, 0, 0, 0)
+        self._image_grid_layout.setHorizontalSpacing(4)
+        self._image_grid_layout.setVerticalSpacing(2)
+        self._image_ch_label = QLabel("Channels:")
+        self._image_grid_layout.addWidget(self._image_ch_label, 0, 0)
+        self._threshold_label = QLabel("Thresholds:")
+        self._image_grid_layout.addWidget(self._threshold_label, 1, 0)
         self._image_ch_placeholder: Optional[QLabel] = QLabel("Load a dataset to configure")
-        self._image_ch_layout.addWidget(self._image_ch_placeholder)
-        self._image_ch_cbs: List[QCheckBox] = []
-        image_layout.addWidget(self._image_ch_group)
-
-        self._threshold_group = QWidget()
-        self._threshold_layout = QHBoxLayout(self._threshold_group)
-        self._threshold_layout.setContentsMargins(0, 0, 0, 0)
-        self._threshold_layout.addWidget(QLabel("Thresholds:"))
+        self._image_grid_layout.addWidget(self._image_ch_placeholder, 0, 1, 1, -1)
         self._threshold_placeholder: Optional[QLabel] = QLabel("Load a dataset to configure")
-        self._threshold_layout.addWidget(self._threshold_placeholder)
-        self._threshold_spins: Dict[str, QDoubleSpinBox] = {}
-        image_layout.addWidget(self._threshold_group)
+        self._image_grid_layout.addWidget(self._threshold_placeholder, 1, 1, 1, -1)
+        self._image_ch_cbs: List[QCheckBox] = []
+        self._threshold_spins: Dict[str, QLineEdit] = {}
+        image_layout.addWidget(self._image_grid)
 
         inner_layout.addWidget(image_group)
 
@@ -195,9 +195,13 @@ class ProfileStepPanel(BaseStepPanel):
             old.deleteLater()
             setattr(self, placeholder_attr, None)
 
-    def _re_add_placeholder(self, placeholder_attr, layout):
+    def _re_add_placeholder(self, placeholder_attr, layout, row=0, col=0, rowspan=1, colspan=1):
         placeholder = QLabel("Load a dataset to configure")
-        layout.addWidget(placeholder)
+        if isinstance(layout, type(self._image_grid_layout)):
+            from PySide6.QtWidgets import QGridLayout
+            layout.addWidget(placeholder, row, col, rowspan, colspan)
+        else:
+            layout.addWidget(placeholder)
         setattr(self, placeholder_attr, placeholder)
 
     def _restore_channel_checks(self, stored, section_key):
@@ -208,27 +212,30 @@ class ProfileStepPanel(BaseStepPanel):
         return set()
 
     def populate_channels(self, channels: List[str]) -> None:
-        saved_thresholds = {
-            ch: spin.value() for ch, spin in self._threshold_spins.items()
-        }
+        saved_thresholds = {}
+        for ch, w in self._threshold_spins.items():
+            try:
+                saved_thresholds[ch] = float(w.text())
+            except (ValueError, TypeError):
+                saved_thresholds[ch] = 0.0
         stored = getattr(self, "_stored_channel_settings", {})
         self._remove_placeholder(self._intensity_ch_layout, "_intensity_placeholder")
         self._remove_placeholder(self._radial_ch_layout, "_radial_placeholder")
         self._remove_placeholder(self._gran_ch_layout, "_gran_placeholder")
         self._remove_placeholder(self._glcm_ch_layout, "_glcm_placeholder")
         self._remove_placeholder(self._corr_layout, "_corr_placeholder")
-        self._remove_placeholder(self._image_ch_layout, "_image_ch_placeholder")
-        self._remove_placeholder(self._threshold_layout, "_threshold_placeholder")
-        self._clear_channel_section(self._image_ch_layout, self._image_ch_cbs)
+        self._remove_placeholder(self._image_grid_layout, "_image_ch_placeholder")
+        self._remove_placeholder(self._image_grid_layout, "_threshold_placeholder")
+        self._clear_grid_section(self._image_grid_layout, self._image_ch_cbs, 0)
+        self._clear_thresholds()
         self._clear_channel_section(self._intensity_ch_layout, self._intensity_cbs)
         self._clear_channel_section(self._radial_ch_layout, self._radial_cbs)
         self._clear_channel_section(self._gran_ch_layout, self._gran_cbs)
         self._clear_channel_section(self._glcm_ch_layout, self._glcm_cbs)
         self._clear_channel_section(self._corr_layout, self._corr_cbs)
-        self._clear_thresholds()
         if not channels:
-            self._re_add_placeholder("_image_ch_placeholder", self._image_ch_layout)
-            self._re_add_placeholder("_threshold_placeholder", self._threshold_layout)
+            self._re_add_placeholder("_image_ch_placeholder", self._image_grid_layout, 0, 1, 1, -1)
+            self._re_add_placeholder("_threshold_placeholder", self._image_grid_layout, 1, 1, 1, -1)
             self._re_add_placeholder("_intensity_placeholder", self._intensity_ch_layout)
             self._re_add_placeholder("_radial_placeholder", self._radial_ch_layout)
             self._re_add_placeholder("_gran_placeholder", self._gran_ch_layout)
@@ -241,13 +248,28 @@ class ProfileStepPanel(BaseStepPanel):
         saved_radial = self._restore_channel_checks(stored, "radial_channels")
         saved_gran = self._restore_channel_checks(stored, "granularity_channels")
         saved_glcm = self._restore_channel_checks(stored, "glcm_channels")
+        image_has_saved = stored and "image_channels" in stored
 
-        for ch in channels:
+        for col_idx, ch in enumerate(channels):
+            col = col_idx + 1
             cb = QCheckBox(ch)
-            cb.setChecked(ch in saved_image)
-            self._image_ch_layout.addWidget(cb)
+            cb.setChecked(ch in saved_image if image_has_saved else True)
+            self._image_grid_layout.addWidget(cb, 0, col)
             self._image_ch_cbs.append(cb)
             self._wire_param_signal(cb)
+
+            # Threshold text input aligned below checkbox
+            th_widget = QLineEdit("0.0")
+            th_widget.setMinimumWidth(70)
+            th_widget.setMaximumWidth(90)
+            th_key = f"threshold_{ch}"
+            if th_key in stored:
+                th_widget.setText(str(stored[th_key]))
+            elif ch in saved_thresholds:
+                th_widget.setText(str(saved_thresholds[ch]))
+            self._image_grid_layout.addWidget(th_widget, 1, col)
+            self._threshold_spins[ch] = th_widget
+            self._wire_param_signal(th_widget)
 
             cb2 = QCheckBox(ch)
             cb2.setChecked(ch in saved_intensity)
@@ -272,25 +294,6 @@ class ProfileStepPanel(BaseStepPanel):
             self._glcm_ch_layout.addWidget(cb5)
             self._glcm_cbs.append(cb5)
             self._wire_param_signal(cb5)
-
-            # Threshold spinbox per channel
-            spin = QDoubleSpinBox()
-            spin.setRange(0.0, 100000.0)
-            spin.setDecimals(1)
-            spin.setMinimumWidth(90)
-            th_key = f"threshold_{ch}"
-            if th_key in stored:
-                try:
-                    spin.setValue(float(stored[th_key]))
-                except (ValueError, TypeError):
-                    spin.setValue(0.0)
-            elif ch in saved_thresholds:
-                spin.setValue(saved_thresholds[ch])
-            else:
-                spin.setValue(0.0)
-            self._threshold_layout.addWidget(spin)
-            self._threshold_spins[ch] = spin
-            self._wire_param_signal(spin)
 
             # Correlation pair checkboxes
             for other in channels:
@@ -341,9 +344,9 @@ class ProfileStepPanel(BaseStepPanel):
 
         # Thresholds
         thresholds = section.get("image_thresholds") or {}
-        for ch, spin in self._threshold_spins.items():
+        for ch, w in self._threshold_spins.items():
             if ch in thresholds:
-                spin.setValue(float(thresholds[ch]))
+                w.setText(str(thresholds[ch]))
 
         # Correlation pairs
         corr_pairs = section.get("correlation_pairs") or []
@@ -363,6 +366,21 @@ class ProfileStepPanel(BaseStepPanel):
         return [cb.text() for cb in cbs if cb.isChecked()]
 
     @staticmethod
+    def _clear_grid_section(layout, checkbox_list, row):
+        i = 0
+        while i < layout.count():
+            item = layout.itemAt(i)
+            w = item.widget()
+            if isinstance(w, QCheckBox):
+                r, _, _, _ = layout.getItemPosition(i)
+                if r == row:
+                    layout.removeItem(item)
+                    w.deleteLater()
+                    continue
+            i += 1
+        checkbox_list.clear()
+
+    @staticmethod
     def _clear_channel_section(layout, checkbox_list):
         i = 0
         while i < layout.count():
@@ -376,9 +394,9 @@ class ProfileStepPanel(BaseStepPanel):
         checkbox_list.clear()
 
     def _clear_thresholds(self):
-        for spin in self._threshold_spins.values():
-            self._threshold_layout.removeWidget(spin)
-            spin.deleteLater()
+        for w in self._threshold_spins.values():
+            self._image_grid_layout.removeWidget(w)
+            w.deleteLater()
         self._threshold_spins.clear()
 
     def populate_masks(self, mask_names: List[str]) -> None:
@@ -415,8 +433,8 @@ class ProfileStepPanel(BaseStepPanel):
             "glcm_channels": ",".join(self.get_checked(self._glcm_cbs)),
         }
         # Thresholds per channel
-        for ch, spin in self._threshold_spins.items():
-            params[f"threshold_{ch}"] = spin.value()
+        for ch, w in self._threshold_spins.items():
+            params[f"threshold_{ch}"] = w.text()
         settings.save_params(self.step_name, params)
         return params
 
@@ -466,8 +484,11 @@ class ProfileStepPanel(BaseStepPanel):
 
     def get_thresholds(self) -> Optional[Dict[str, float]]:
         result = {}
-        for ch, spin in self._threshold_spins.items():
-            val = spin.value()
+        for ch, w in self._threshold_spins.items():
+            try:
+                val = float(w.text())
+            except (ValueError, TypeError):
+                val = 0.0
             if val > 0:
                 result[ch] = val
         return result or None

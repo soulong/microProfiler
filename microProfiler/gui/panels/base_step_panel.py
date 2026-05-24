@@ -36,24 +36,26 @@ class BaseStepPanel(QGroupBox):
         self._was_checked = False
         self.setCheckable(True)
         self.setChecked(False)
-        self.setStyleSheet("QGroupBox { font-weight: bold; }")
+        self.setProperty("class", "card")
 
         self._status_label = QLabel("")
-        self._status_label.setStyleSheet("color: green; font-weight: normal;")
 
         top = QHBoxLayout()
+        top.setContentsMargins(0, 0, 0, 0)
         top.addStretch()
         top.addWidget(self._status_label)
 
         self._controls_widget = QWidget()
         self._controls_layout = QVBoxLayout(self._controls_widget)
         self._controls_layout.setContentsMargins(0, 0, 0, 0)
+        self._controls_layout.setSpacing(2)
 
         self._preview_widget = QWidget()
         self._preview_layout = QVBoxLayout(self._preview_widget)
         self._preview_layout.setContentsMargins(0, 0, 0, 0)
 
         body = QVBoxLayout(self)
+        body.setSpacing(0)
         body.addLayout(top)
         body.addWidget(self._controls_widget)
         body.addWidget(self._preview_widget)
@@ -70,10 +72,13 @@ class BaseStepPanel(QGroupBox):
         if locked:
             self.setCheckable(False)
             self._status_label.setText("✓ Completed")
+            self._status_label.setProperty("class", "success")
         else:
             self.setCheckable(True)
             self.setChecked(self._was_checked)
             self._status_label.setText("")
+            self._status_label.setProperty("class", "")
+        self._status_label.style().polish(self._status_label)
 
     def _wire_param_signal(self, widget: QObject) -> None:
         """Connect common widget value-change signals to ``parameter_changed``."""

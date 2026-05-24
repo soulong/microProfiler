@@ -12,25 +12,40 @@ class ProgressPanel(QWidget):
 
     cancel_requested = Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, compact: bool = False):
         super().__init__(parent)
         self._label = QLabel("")
         self._bar = QProgressBar()
         self._bar.setRange(0, 100)
         self._bar.setValue(0)
-        self._bar.setFixedHeight(30)
+        self._bar.setTextVisible(True)
+        self._bar.setFormat("%p%")
         self._cancel_btn = QPushButton("Cancel")
+        self._cancel_btn.setProperty("class", "danger")
         self._cancel_btn.clicked.connect(self.cancel_requested)
         self._cancel_btn.setVisible(False)
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        top = QHBoxLayout()
-        top.addWidget(self._label)
-        top.addStretch()
-        top.addWidget(self._cancel_btn)
-        layout.addLayout(top)
-        layout.addWidget(self._bar)
+        if compact:
+            self._bar.setFixedHeight(16)
+            self._bar.setMinimumWidth(200)
+            self._bar.setMaximumWidth(350)
+            self._label.setMaximumWidth(280)
+            layout = QHBoxLayout(self)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(8)
+            layout.addWidget(self._label)
+            layout.addWidget(self._bar)
+            layout.addWidget(self._cancel_btn)
+        else:
+            self._bar.setFixedHeight(22)
+            layout = QVBoxLayout(self)
+            layout.setContentsMargins(0, 0, 0, 0)
+            top = QHBoxLayout()
+            top.addWidget(self._label)
+            top.addStretch()
+            top.addWidget(self._cancel_btn)
+            layout.addLayout(top)
+            layout.addWidget(self._bar)
 
     def update_progress(self, step: str, current: int, total: int, message: str) -> None:
         self._label.setText(f"{step}: {message}")
@@ -40,24 +55,21 @@ class ProgressPanel(QWidget):
         else:
             self._bar.setRange(0, 0)
         self._cancel_btn.setVisible(True)
-        # Reset bar style — clear any error state
-        self._bar.setStyleSheet("")
+        self._bar.setProperty("class", "")
+        self._bar.style().polish(self._bar)
 
     def show_status(self, message: str, pct: int) -> None:
-        """Update with a percentage status (e.g. for preview or non-step progress)."""
         self._label.setText(message)
         self._bar.setRange(0, 100)
         self._bar.setValue(pct)
         self._cancel_btn.setVisible(False)
-        self._bar.setStyleSheet("")
+        self._bar.setProperty("class", "")
+        self._bar.style().polish(self._bar)
 
     def show_error(self, message: str) -> None:
-        """Display error state on the progress bar."""
         self._label.setText(f"Error: {message}")
-        self._bar.setStyleSheet(
-            "QProgressBar { border: 1px solid #d00; }"
-            "QProgressBar::chunk { background-color: #d00; }"
-        )
+        self._bar.setProperty("class", "error")
+        self._bar.style().polish(self._bar)
         self._cancel_btn.setVisible(False)
 
     def reset(self) -> None:
@@ -65,15 +77,15 @@ class ProgressPanel(QWidget):
         self._bar.setRange(0, 100)
         self._bar.setValue(0)
         self._cancel_btn.setVisible(False)
-        self._bar.setStyleSheet("")
+        self._bar.setProperty("class", "")
+        self._bar.style().polish(self._bar)
 
     def finished(self) -> None:
         self._bar.setValue(self._bar.maximum())
         self._cancel_btn.setVisible(False)
         self._label.setText("Complete")
-        self._bar.setStyleSheet(
-            "QProgressBar::chunk { background-color: #090; }"
-        )
+        self._bar.setProperty("class", "success")
+        self._bar.style().polish(self._bar)
 
 
 class QtLogHandler(QObject, logging.Handler):

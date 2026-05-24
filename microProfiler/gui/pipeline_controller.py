@@ -501,12 +501,12 @@ class PipelineController(QObject):
         if chan1:
             ch = chan1[0]
             c1_img = read_image(row_dir / row[ch])
-            block._c1_view.set_image(c1_img)
+            self._w._segment_panel.set_preview_c1(block_index, c1_img)
         if chan2:
             ch = chan2[0]
             try:
                 c2_img = read_image(row_dir / row[ch])
-                block._c2_view.set_image(c2_img)
+                self._w._segment_panel.set_preview_c2(block_index, c2_img)
             except Exception:
                 pass
 

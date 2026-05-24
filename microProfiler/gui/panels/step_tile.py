@@ -35,7 +35,7 @@ class TileStepPanel(BaseStepPanel):
         row.addWidget(self._tile_h)
         row.addStretch()
         self._apply_btn = QPushButton("▶ Apply")
-        self._apply_btn.setStyleSheet("font-weight: bold; padding: 4px 16px;")
+        self._apply_btn.setProperty("class", "primary")
         row.addWidget(self._apply_btn)
         self._controls_layout.addLayout(row)
 

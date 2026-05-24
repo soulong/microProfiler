@@ -29,6 +29,17 @@ class PreviewWorker(QObject):
         self._row_idx: int = 0
 
     def preview_basic(self, ds: ImageDataset, row_idx: int, channels: List[str]) -> None:
+        """Preview BaSiC flatfield correction on a single image.
+
+        Parameters
+        ----------
+        ds : ImageDataset
+            Dataset to pull the image from.
+        row_idx : int
+            Row index in the dataset metadata.
+        channels : list of str
+            Channels to apply correction to.
+        """
         if self._thread.isRunning():
             return
         self._dataset = ds
@@ -38,6 +49,17 @@ class PreviewWorker(QObject):
         self._thread.start()
 
     def preview_segment(self, ds: ImageDataset, row_idx: int, seg_params: dict) -> None:
+        """Preview Cellpose segmentation on a single image.
+
+        Parameters
+        ----------
+        ds : ImageDataset
+            Dataset to pull the image from.
+        row_idx : int
+            Row index in the dataset metadata.
+        seg_params : dict
+            Segmentation parameters forwarded to ``segment_single()``.
+        """
         if self._thread.isRunning():
             return
         self._dataset = ds

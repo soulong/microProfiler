@@ -7,6 +7,7 @@ import numpy as np
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QImage, QPainter, QPixmap
 from PySide6.QtWidgets import (
+    QFrame,
     QGraphicsPixmapItem,
     QGraphicsScene,
     QGraphicsView,
@@ -52,7 +53,8 @@ class ImageViewer(QGraphicsView):
         self.setRenderHints(QPainter.SmoothPixmapTransform | QPainter.Antialiasing)
         self.setDragMode(QGraphicsView.ScrollHandDrag)
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
-        self.setMinimumSize(200, 200)
+        self.setFrameShape(QFrame.NoFrame)
+        self.setMinimumSize(100, 100)
 
     def set_image(self, arr: np.ndarray | QImage) -> None:
         self._scene.clear()

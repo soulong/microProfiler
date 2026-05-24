@@ -373,20 +373,40 @@ def profile_objects(
 ) -> Optional[pd.DataFrame]:
     """Profile all objects in a dataset for a given mask.
 
+    Iterates over every image in the dataset, loads the image and mask pair,
+    runs ``measure_objects()``, and aggregates results. Writes to SQLite if
+    ``db_path`` is provided, otherwise returns a DataFrame.
+
     Parameters
     ----------
     ds : ImageDataset
+        Dataset containing intensity images and mask files for ``mask_name``.
     mask_name : str
+        Mask to use for object measurements (e.g. ``"cell"``).
     parent_mask_name : str, optional
+        Parent mask for hierarchical child-to-parent assignment.
     intensity_channels : list of str, optional
+        Channels for mean, median, std, and sum intensity measurements.
+        Defaults to all intensity channels.
     radial_channels : list of str, optional
+        Channels for radial distribution measurement.
     radial_n_bins : int
+        Number of radial bins. Default is 5.
     granularity_channels : list of str, optional
+        Channels for granularity spectrum measurement.
     glcm_channels : list of str, optional
+        Channels for GLCM texture measurement.
     glcm_distances : list of int, optional
+        GLCM pixel distances. Defaults to ``[1, 2, 3]``.
     correlation_pairs : list of (str, str), optional
+        Channel pairs for Pearson correlation.
     db_path : str or Path, optional
+        SQLite output path. ``None`` returns a DataFrame instead.
     table_name : str, optional
+        DB table name. Defaults to ``mask_name``.
+    progress_cb : callable or None, optional
+        Optional callback ``(step_name, current, total, message)``
+        for GUI progress tracking.
     **extra_kwargs : dict, optional
         Extra keyword arguments forwarded to ``measure_objects()``.
         Use to override ``granularity_kwargs``, ``glcm_kwargs``,
@@ -395,6 +415,8 @@ def profile_objects(
     Returns
     -------
     pd.DataFrame or None
+        Combined object measurements across all images, or ``None``
+        if results were written to database via ``db_path``.
     """
     table_name = table_name or mask_name
     log.debug(

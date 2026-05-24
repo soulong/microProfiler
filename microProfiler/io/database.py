@@ -46,7 +46,17 @@ class Database:
         table_name: str,
         if_exists: Literal["fail", "replace", "append"] = "replace",
     ) -> None:
-        """Write a DataFrame to a table."""
+        """Write a DataFrame to an SQLite table.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            DataFrame to persist.
+        table_name : str
+            Target table name.
+        if_exists : str
+            ``"fail"``, ``"replace"``, or ``"append"``. Default is ``"replace"``.
+        """
         log.debug("save_table: %s (%d rows, %d cols)", table_name, len(df), len(df.columns))
         conn = self._get_conn()
         df_copy = df.copy()
@@ -60,12 +70,29 @@ class Database:
         df_copy.to_sql(table_name, conn, if_exists=if_exists, index=False)
 
     def query(self, sql: str) -> pd.DataFrame:
-        """Execute a SELECT query and return results."""
+        """Execute a SELECT query and return results as a DataFrame.
+
+        Parameters
+        ----------
+        sql : str
+            SQL SELECT statement to execute.
+
+        Returns
+        -------
+        pd.DataFrame
+            Query results.
+        """
         conn = self._get_conn()
         return pd.read_sql_query(sql, conn)
 
     def get_tables(self) -> list:
-        """List all tables in the database."""
+        """List all tables in the database.
+
+        Returns
+        -------
+        list of str
+            Table names.
+        """
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")

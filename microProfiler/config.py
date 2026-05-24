@@ -14,11 +14,15 @@ log = logging.getLogger(__name__)
 
 
 class VendorFormat(str, Enum):
+    """Supported vendor microscope formats."""
+
     operetta = "operetta"
     mica = "mica"
 
 
 class ProjectionMethod(str, Enum):
+    """Z-stack projection strategies."""
+
     max = "max"
     mean = "mean"
     min = "min"
@@ -71,10 +75,14 @@ class PipelineConfig(BaseModel):
 
 
 class ResizeConfig(BaseModel):
+    """Image resizing configuration."""
+
     scale_factor: float = Field(1.0, ge=0.1, le=4.0, description="Resize scale factor")
 
 
 class BasicConfig(BaseModel):
+    """BaSiC shading correction configuration."""
+
     mode: str = Field("fit-transform", pattern=r"^(fit|transform|fit-transform)$")
     n_image: int = Field(50, ge=1, description="Number of images for fitting")
     working_size: int = Field(64, ge=16, description="Working size for BaSiC model")
@@ -82,15 +90,21 @@ class BasicConfig(BaseModel):
 
 
 class ZProjectionConfig(BaseModel):
+    """Z-stack projection configuration."""
+
     method: ProjectionMethod = Field(ProjectionMethod.max, description="Projection method")
 
 
 class TileConfig(BaseModel):
+    """Non-overlapping tile splitting configuration."""
+
     tile_width: int = Field(1024, ge=64, description="Tile width in pixels")
     tile_height: int = Field(1024, ge=64, description="Tile height in pixels")
 
 
 class SegmentationConfig(BaseModel):
+    """Cellpose-based segmentation configuration."""
+
     object_name: str = Field("cell", description="Object name for masks")
     chan1: List[str] = Field(default_factory=list, description="First channel group")
     chan2: Optional[List[str]] = Field(None, description="Second channel group")
@@ -103,6 +117,8 @@ class SegmentationConfig(BaseModel):
 
 
 class ProfilingConfig(BaseModel):
+    """Image-level and object-level profiling configuration."""
+
     image_channels: Optional[List[str]] = Field(
         None, description="Channels for image profiling",
     )

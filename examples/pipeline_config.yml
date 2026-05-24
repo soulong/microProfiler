@@ -27,9 +27,6 @@ resize:
   # Scale factor for independent resize step after conversion (0.1–4.0, default: 1.0)
   scale_factor: 0.5
 
-  # Resize in-place (overwrite source directory, default: true)
-  inplace: true
-
 # ── BaSiC shading correction ─────────────────────────────────────────────────
 basic_correction:
   # Mode: "fit", "transform", or "fit-transform" (default: fit-transform)
@@ -44,16 +41,10 @@ basic_correction:
   # Enable darkfield estimation (default: false)
   enable_darkfield: false
 
-  # Correct images in-place (overwrite source directory, default: true)
-  inplace: true
-
 # ── Z-projection ─────────────────────────────────────────────────────────────
 z_projection:
   # Projection method: "max", "mean", or "min" (default: max)
   method: max
-
-  # Project in-place (replace source directory, default: true)
-  inplace: true
 
 # ── Tile splitting ───────────────────────────────────────────────────────────
 tile:
@@ -63,11 +54,8 @@ tile:
   # Tile height in pixels (≥64, default: 1024)
   tile_height: 1024
 
-  # Tile in-place (replace source directory, default: true)
-  inplace: true
-
 # ── Segmentation ─────────────────────────────────────────────────────────────
-segmentation:
+segmentations:
   # Object name used for mask filenames (default: "cell")
   object_name: cell
 

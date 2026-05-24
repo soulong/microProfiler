@@ -313,7 +313,32 @@ def run_step(
     For all other steps, loads the existing ImageDataset from the output
     directory and runs only the requested step.
 
-    Pass a pre-loaded ``ds`` to skip the disk load.
+    Parameters
+    ----------
+    cfg : PipelineConfig
+        Pipeline configuration.
+    step_name : str
+        One of ``"convert"``, ``"resize"``, ``"basic"``, ``"zproject"``,
+        ``"tile"``, ``"segment"``, ``"profile"``.
+    db_name : str
+        Filename for the output SQLite database (only used for ``"profile"``).
+    log_file : Path or None
+        Optional path for log output.
+    progress_cb : callable or None
+        Optional callback ``(step_name, current, total, message)``
+        for GUI progress tracking.
+    ds : ImageDataset or None
+        Optional pre-loaded dataset. When provided, skips loading from disk.
+
+    Returns
+    -------
+    ImageDataset or None
+        The dataset after the step, or ``None`` for ``"profile"`` step.
+
+    Raises
+    ------
+    ValueError
+        If ``step_name`` is not a recognized pipeline step.
     """
     log = setup_logging(log_file=log_file, clear_existing=False)
     log.info("Running step: %s", step_name)
@@ -375,6 +400,11 @@ def run_pipeline(
     ds : ImageDataset or None
         Optional pre-loaded dataset. When provided, skips dataset
         loading from disk (convert step).
+
+    Returns
+    -------
+    ImageDataset or None
+        The dataset after the full pipeline run.
     """
     log = setup_logging(log_file=log_file, clear_existing=False)
     log.info("Pipeline start — input: %s", cfg.input_dir)

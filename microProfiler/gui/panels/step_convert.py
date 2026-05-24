@@ -31,7 +31,7 @@ class ConvertStepPanel(BaseStepPanel):
         self._controls_layout.addLayout(form)
 
         self._apply_btn = QPushButton("▶ Apply")
-        self._apply_btn.setStyleSheet("font-weight: bold; padding: 4px 16px;")
+        self._apply_btn.setProperty("class", "primary")
         btn_row = QHBoxLayout()
         btn_row.addStretch()
         btn_row.addWidget(self._apply_btn)
