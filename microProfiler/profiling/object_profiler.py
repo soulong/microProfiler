@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
@@ -391,6 +391,32 @@ def _process_one_object(
     )
 
 
+def _profile_object_worker(args):
+    """ProcessPoolExecutor worker — receives only serializable types."""
+    (image_data, mask_data, channel_names, meta, mask_name,
+     parent_mask_name, intensity_channels, correlation_pairs, measure_kwargs) = args
+
+    from microProfiler.profiling.object_profiler import measure_objects
+
+    mask = mask_data.get(mask_name)
+    if mask is None:
+        return None
+    parent_mask = None
+    if parent_mask_name is not None:
+        parent_mask = mask_data.get(parent_mask_name)
+    return measure_objects(
+        mask=mask,
+        img=image_data,
+        channel_names=channel_names,
+        metadata_row=meta,
+        parent_mask=parent_mask,
+        parent_mask_name=parent_mask_name or "Parent",
+        intensity_channels=intensity_channels,
+        correlation_pairs=correlation_pairs,
+        **measure_kwargs,
+    )
+
+
 def profile_objects(
     ds: ImageDataset,
     mask_name: str,
@@ -504,15 +530,26 @@ def profile_objects(
             if result is not None:
                 results.append(result)
     else:
+        # Pre-read all image/mask data (serializable) for ProcessPoolExecutor
+        tasks = []
+        for idx in range(n_total):
+            row = ds.metadata.iloc[idx]
+            meta = {
+                k: v for k, v in row.to_dict().items()
+                if k not in ds.intensity_colnames and k not in ds.mask_colnames
+            }
+            image_data, mask_data = ds.get_imageset(idx)
+            tasks.append((
+                image_data, mask_data, ds.intensity_colnames, meta,
+                mask_name, parent_mask_name, intensity_channels,
+                correlation_pairs, measure_kwargs,
+            ))
+
         completed = 0
-        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+        with ProcessPoolExecutor(max_workers=n_workers) as executor:
             futures = {
-                executor.submit(
-                    _process_one_object, ds, idx, mask_name,
-                    parent_mask_name, intensity_channels,
-                    correlation_pairs, measure_kwargs,
-                ): idx
-                for idx in range(n_total)
+                executor.submit(_profile_object_worker, t): idx
+                for idx, t in enumerate(tasks)
             }
             for future in tqdm(as_completed(futures), total=n_total, desc=f"Profiling {mask_name}", unit="img"):
                 idx = futures[future]

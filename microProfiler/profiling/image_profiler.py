@@ -7,7 +7,7 @@ optionally object-area statistics via thresholding.
 from __future__ import annotations
 
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
@@ -108,6 +108,13 @@ def _process_one_image(
     return pd.DataFrame([{**meta, **measures}])
 
 
+def _profile_image_worker(args):
+    """ProcessPoolExecutor worker — receives only serializable types."""
+    image_data, channel_names, channels, thresholds, meta = args
+    measures = measure_single_image(image_data, channel_names, channels, thresholds)
+    return pd.DataFrame([{**meta, **measures}])
+
+
 def profile_images(
     ds: ImageDataset,
     channels: Optional[List[str]] = None,
@@ -153,11 +160,20 @@ def profile_images(
                 progress_cb("Profile Image", idx, n_total, f"Row {idx}")
             results.append(_process_one_image(ds, idx, channels, thresholds))
     else:
+        # Pre-read all image data (serializable) for ProcessPoolExecutor
+        tasks = []
+        for idx in range(n_total):
+            image_data, _ = ds.get_imageset(idx)
+            row = ds.metadata.iloc[idx]
+            excluded = set(ds.intensity_colnames) | set(ds.mask_colnames)
+            meta = {k: v for k, v in row.to_dict().items() if k not in excluded}
+            tasks.append((image_data, ds.intensity_colnames, channels, thresholds, meta))
+
         completed = 0
-        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+        with ProcessPoolExecutor(max_workers=n_workers) as executor:
             futures = {
-                executor.submit(_process_one_image, ds, idx, channels, thresholds): idx
-                for idx in range(n_total)
+                executor.submit(_profile_image_worker, t): idx
+                for idx, t in enumerate(tasks)
             }
             for future in tqdm(as_completed(futures), total=n_total, desc="Image profiling", unit="img"):
                 idx = futures[future]
