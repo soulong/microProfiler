@@ -321,6 +321,7 @@ class ProfileStepPanel(BaseStepPanel):
                     pair_cb = QCheckBox(f"{ch}-{other}")
                     self._corr_layout.addWidget(pair_cb)
                     self._corr_cbs.append(pair_cb)
+                    self._wire_param_signal(pair_cb)
 
         # Clear stored settings after applying
         if hasattr(self, "_stored_channel_settings"):

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -70,6 +70,8 @@ class BaseStepPanel(QGroupBox):
     def set_locked(self, locked: bool) -> None:
         self._controls_widget.setEnabled(not locked)
         if locked:
+            self._was_checked = self.isChecked()
+            super().setChecked(True)
             self.setCheckable(False)
             self._status_label.setText("✓ Completed")
             self._status_label.setProperty("class", "success")
@@ -84,13 +86,13 @@ class BaseStepPanel(QGroupBox):
         """Connect common widget value-change signals to ``parameter_changed``."""
         if isinstance(widget, (QLineEdit, QSpinBox, QDoubleSpinBox)):
             if hasattr(widget, "valueChanged"):
-                widget.valueChanged.connect(self.parameter_changed)
+                widget.valueChanged.connect(self.parameter_changed, Qt.UniqueConnection)
             if hasattr(widget, "textChanged"):
-                widget.textChanged.connect(self.parameter_changed)
+                widget.textChanged.connect(self.parameter_changed, Qt.UniqueConnection)
         elif isinstance(widget, QCheckBox):
-            widget.toggled.connect(self.parameter_changed)
+            widget.toggled.connect(self.parameter_changed, Qt.UniqueConnection)
         elif isinstance(widget, QComboBox):
-            widget.currentIndexChanged.connect(self.parameter_changed)
+            widget.currentIndexChanged.connect(self.parameter_changed, Qt.UniqueConnection)
 
     def _collect_widgets(self) -> List[QObject]:
         """Return all parameter widgets. Override in subclasses."""

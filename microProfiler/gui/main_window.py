@@ -413,6 +413,11 @@ class MainWindow(QMainWindow):
                         for step in self._all_step_panels:
                             if step.step_name in locked and step.step_name not in ("segment", "profile"):
                                 step.set_locked(True)
+                        # Restore enabled/checked state for unlocked steps
+                        enabled = data.get("steps_enabled", {})
+                        for step in self._all_step_panels:
+                            if step.step_name not in locked and step.step_name in enabled:
+                                step.setChecked(enabled[step.step_name])
                         logging.getLogger("microProfiler").info(
                             f"Session restored — {len(locked)} steps completed"
                         )
@@ -447,31 +452,22 @@ class MainWindow(QMainWindow):
         session_root = self._output_dir.text() or self._input_dir.text()
         if session_root:
             sf = SessionFile(Path(session_root))
-            session_params = sf.load_all_params()
-            if session_params:
-                settings = DictSettings(session_params)
-                for step in self._all_step_panels:
-                    step.load_from_settings(settings)
-            # Restore checked states from session.json
-            session_data = sf.load()
-            if session_data and "steps_enabled" in session_data:
-                for step in self._all_step_panels:
-                    if step.step_name in session_data["steps_enabled"]:
-                        step.setChecked(session_data["steps_enabled"][step.step_name])
-            last_dir = sf.load_input_dir()
-
-        if last_dir and Path(last_dir).is_dir() and not self._input_dir.text():
-            self._input_dir.setText(last_dir)
-            self._on_input_changed()
-
-        if session_root:
-            sf = SessionFile(Path(session_root))
             data = sf.load()
             if data:
+                params = data.get("params", {})
+                if params:
+                    settings = DictSettings(params)
+                    for step in self._all_step_panels:
+                        step.load_from_settings(settings)
+                enabled = data.get("steps_enabled", {})
+                for step in self._all_step_panels:
+                    if step.step_name in enabled:
+                        step.setChecked(enabled[step.step_name])
                 locked = data.get("steps_locked", [])
                 for step in self._all_step_panels:
                     if step.step_name in locked and step.step_name not in ("segment", "profile"):
                         step.set_locked(True)
+                last_dir = data.get("general", {}).get("input_dir")
                 if data.get("running"):
                     QMessageBox.warning(
                         self, "Interrupted Session",
@@ -503,6 +499,11 @@ class MainWindow(QMainWindow):
             logging.getLogger("microProfiler").info(
                 "New session started - restored parameter values."
             )
+
+        if last_dir and Path(last_dir).is_dir() and not self._input_dir.text():
+            self._input_dir.setText(last_dir)
+            self._on_input_changed()
+
         self._update_tab_status()
 
     # ── Compact widths ──────────────────────────────────────────────────

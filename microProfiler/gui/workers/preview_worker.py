@@ -128,4 +128,9 @@ class PreviewWorker(QObject):
             self.error.emit(str(e))
         finally:
             self._thread.quit()
-            self._thread.wait()
+
+    def cancel(self) -> None:
+        """Request cancellation of the running preview."""
+        if self._thread.isRunning():
+            self._thread.quit()
+            self._thread.wait(3000)

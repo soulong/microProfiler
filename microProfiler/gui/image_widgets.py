@@ -59,6 +59,7 @@ class ImageViewer(QGraphicsView):
         self._fit_to_view = True
         self._zoom_level = 0
         self.setRenderHints(QPainter.SmoothPixmapTransform | QPainter.Antialiasing)
+        self._reloading = False
         self.setDragMode(QGraphicsView.ScrollHandDrag)
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         self.setFrameShape(QFrame.NoFrame)

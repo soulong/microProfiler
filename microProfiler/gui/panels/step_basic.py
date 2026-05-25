@@ -78,9 +78,9 @@ class BaSiCStepPanel(BaseStepPanel):
         """Clear and rebuild the per-channel preview rows."""
         self._clear_preview()
         if not channel_names:
-            self._preview_container.addWidget(
-                QLabel("Load a dataset and click Pick Random to preview")
-            )
+            placeholder = QLabel("Load a dataset and click Pick Random to preview")
+            placeholder.setProperty("class", "placeholder")
+            self._preview_container.addWidget(placeholder)
             return
         for ch in channel_names:
             row = QHBoxLayout()
