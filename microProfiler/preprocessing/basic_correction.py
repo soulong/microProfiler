@@ -153,6 +153,7 @@ def fit_models(
         paths = [
             Path(metadata.iloc[i]["directory"]) / metadata.iloc[i][chan]
             for i in range(len(metadata))
+            if pd.notna(metadata.iloc[i][chan])
         ]
         paths = [p for p in paths if p.exists()]
         if not paths:
@@ -237,6 +238,7 @@ def transform_images(
             paths = [
                 Path(metadata.iloc[i]["directory"]) / metadata.iloc[i][chan]
                 for i in range(len(metadata))
+                if pd.notna(metadata.iloc[i][chan])
             ]
             paths = [p for p in paths if p.exists()]
 

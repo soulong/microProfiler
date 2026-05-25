@@ -155,6 +155,7 @@ def _find_mica_root(path: Path, _max_depth: int = 10) -> Path:
         if parent == current:
             break
         current = parent
+    log.warning("_find_mica_root: no MICA root found within %d levels — using %s", _max_depth, path)
     return path
 
 
@@ -274,7 +275,7 @@ def convert_measurement(
                     f"Operetta images subdirectory not found: {img_dir}"
                 )
 
-            tiff_files = sorted(img_dir.glob("*.tiff"))
+            tiff_files = sorted(img_dir.rglob("*.tiff"))
             if not tiff_files:
                 raise FileNotFoundError(f"No .tiff files found in {img_dir}")
 

@@ -183,8 +183,8 @@ def profile_images(
                     if progress_cb:
                         progress_cb("Profile Image", completed, n_total, f"Row {idx}")
                 except Exception:
-                    log.exception("Image profiling failed for row %d", idx)
-                    raise
+                    log.exception("Image profiling failed for row %d — skipping", idx)
+                    completed += 1
 
     if not results:
         return None

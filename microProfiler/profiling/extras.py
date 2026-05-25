@@ -77,12 +77,12 @@ def make_radial_distribution(
     once per object, and each per-bin closure reads its value from the
     cached array.
     """
-    _state = {"last_id": None, "result": None}
+    _state = {"ptr": None, "result": None}
 
     def _compute(mask, intensity):
-        mid = id(mask)
-        if _state["last_id"] != mid:
-            _state["last_id"] = mid
+        ptr = mask.ctypes.data
+        if _state["ptr"] != ptr:
+            _state["ptr"] = ptr
             _state["result"] = _radial_all(mask, intensity, nbins=nbins, channel=channel)
         return _state["result"]
 
@@ -134,12 +134,14 @@ def _granularity_all(
         return result
 
     for i, s in enumerate(scales):
-        radius = max(1, round(s * element_size / 10))
-        se = disk(radius)
-        opened = dilation(erosion(current, se), se)
-        curr_mean = opened[mask].mean() if mask.any() else 0.0
+        radius = round(s * element_size / 10)
+        if radius == 0:
+            curr_mean = current[mask].mean() if mask.any() else 0.0
+        else:
+            se = disk(radius)
+            current = dilation(erosion(current, se), se)
+            curr_mean = current[mask].mean() if mask.any() else 0.0
         result[i] = (prev_mean - curr_mean) / prev_mean if prev_mean > 0 else 0.0
-        current = opened
         prev_mean = curr_mean
 
     return result
@@ -161,12 +163,12 @@ def make_granularity(
     scales = tuple(scales)
     log.debug("Granularity: scales=%s, element_size=%s, subsample=%s", scales, element_size, subsample_size)
 
-    _state = {"last_id": None, "result": None}
+    _state = {"ptr": None, "result": None}
 
     def _compute(mask, intensity):
-        mid = id(mask)
-        if _state["last_id"] != mid:
-            _state["last_id"] = mid
+        ptr = mask.ctypes.data
+        if _state["ptr"] != ptr:
+            _state["ptr"] = ptr
             _state["result"] = _granularity_all(
                 mask, intensity, scales=scales, channel=channel,
                 subsample_size=subsample_size, element_size=element_size,
@@ -253,12 +255,12 @@ def make_glcm(
     props = tuple(props)
     log.debug("GLCM: distances=%s, angles=%d, levels=%d, props=%s", distances, len(angles), levels, props)
 
-    _state = {"last_id": None, "result": None}
+    _state = {"ptr": None, "result": None}
 
     def _compute(mask, intensity):
-        mid = id(mask)
-        if _state["last_id"] != mid:
-            _state["last_id"] = mid
+        ptr = mask.ctypes.data
+        if _state["ptr"] != ptr:
+            _state["ptr"] = ptr
             _state["result"] = _glcm_all(
                 mask, intensity, distances=distances, angles=angles,
                 levels=levels, channel=channel, props=props,

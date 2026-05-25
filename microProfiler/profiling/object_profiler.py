@@ -561,8 +561,8 @@ def profile_objects(
                     if progress_cb:
                         progress_cb(f"Profile {mask_name}", completed, n_total, f"Row {idx}")
                 except Exception:
-                    log.exception("Object profiling failed for row %d", idx)
-                    raise
+                    log.exception("Object profiling failed for row %d — skipping", idx)
+                    completed += 1
 
     if not results:
         return None

@@ -199,15 +199,10 @@ def main(argv: list[str] | None = None) -> int:
 
         # ── Segmentation config ─────────────────────────────────────────
         if args.segment:
-            seg = cfg.segmentation
-            if isinstance(seg, BaseModel):
-                seg = seg.model_dump()
-            else:
-                seg = seg or {}
-            seg["object_name"] = args.segment
+            seg_dict = {"object_name": args.segment}
             if args.segment_channels:
-                seg["chan1"] = args.segment_channels
-            cfg.segmentation = seg
+                seg_dict["chan1"] = args.segment_channels
+            cfg.segmentations.append(seg_dict)
 
         # ── Profiling config ────────────────────────────────────────────
         if args.profile_image or args.profile_object or args.workers is not None:
@@ -217,7 +212,7 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 prof = prof or {}
             if args.profile_image:
-                prof["image_channels"] = None
+                prof["image_channels"] = []
             if args.profile_object:
                 prof["object_mask_name"] = args.profile_object
             if args.workers is not None:

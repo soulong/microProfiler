@@ -66,6 +66,8 @@ def _has_row_subdirs(directory: Path) -> bool:
     """Check if *directory* contains single-letter subdirectories (mica raw layout)."""
     try:
         for entry in directory.iterdir():
+            if entry.name.lower() == "metadata":
+                continue
             if entry.is_dir() and entry.name.isalpha() and len(entry.name) == 1:
                 return True
     except OSError:
@@ -212,7 +214,7 @@ class ImageDataset:
                 pass  # mica layout: search_dir stays as measurement_dir
 
         # Auto-detect extension only within the chosen search_dir
-        if self._image_pattern is UNIFIED_IMAGE_PATTERN:
+        if self._image_pattern.pattern == UNIFIED_IMAGE_PATTERN.pattern:
             ext = _detect_intensity_suffix(search_dir)
             self._image_pattern = re.compile(_UNIFIED_IMAGE_BASE + re.escape(ext))
             log.debug("Detected image extension: %s in %s", ext, search_dir)
@@ -292,8 +294,8 @@ class ImageDataset:
                 mpivoted.columns = [f"mask_{c}" for c in mpivoted.columns]
                 pivoted = pivoted.join(mpivoted, how="left")
             else:
-                log.debug("intensity_df index: %s", pivoted.index.names)
-                log.debug("mask_combined index: %s", mcombined.index.names)
+                log.info("intensity_df index: %s", pivoted.index.names)
+                log.info("mask_combined index: %s", mcombined.index.names)
 
             self._mask_colnames = [f"mask_{n}" for n in mask_names]
 

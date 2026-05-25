@@ -35,7 +35,7 @@ def read_image(path: Union[str, Path]) -> np.ndarray:
         raise FileNotFoundError(f"Image not found: {path}")
 
     ext = path.suffix.lower()
-    if ext == ".png":
+    if ext in (".png", ".jpg", ".jpeg"):
         with Image.open(str(path)) as img:
             return np.array(img)
     return tifffile.imread(str(path))

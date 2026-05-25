@@ -136,6 +136,7 @@ def segment_single(
     flow_threshold: float = 0.4,
     cellprob_threshold: float = 0.0,
     resize_factor: float = 1.0,
+    gpu_batch_size: int = 16,
 ) -> Tuple[np.ndarray, Optional[np.ndarray], np.ndarray]:
     """Segment a single image row using Cellpose-SAM.
 
@@ -175,9 +176,11 @@ def segment_single(
         diameter=diameter_val,
         flow_threshold=flow_threshold,
         cellprob_threshold=cellprob_threshold,
+        batch_size=gpu_batch_size,
     )
     if resize_factor != 1.0:
         masks = rescale(masks, 1.0 / resize_factor, order=0).astype(np.uint16)
+    masks = closing(masks)
 
     c1_img = img[0] if img.shape[0] >= 1 else None
     c2_img = img[1] if img.shape[0] >= 2 else None

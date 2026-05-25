@@ -12,17 +12,19 @@ class ImageDataset(
     image_pattern: Optional[Union[str, re.Pattern]] = None,
     mask_pattern: Optional[Union[str, re.Pattern]] = None,
     filters: Optional[Dict[str, str]] = None,
+    image_subdir_pattern: Optional[str] = None,
 )
 ```
 
-Lightweight metadata manager for a directory of microscopy images. Scans the directory, auto-detects the image file extension (`.tiff`, `.tif`, `.jpg`, `.jpeg`), and builds a metadata DataFrame by parsing filenames against a regex pattern.
+Lightweight metadata manager for a directory of microscopy images. Scans the directory, auto-detects the image file extension (`.tiff`, `.tif`, `.jpg`, `.jpeg`), and builds a metadata DataFrame by parsing filenames against a regex pattern. Checks `image/` subdirectory first for converted data; falls back to `image_subdir_pattern` or auto-detection.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `measurement_dir` | `str` or `Path` | — | Directory containing either `Images/` subfolder or unified image files. |
+| `measurement_dir` | `str` or `Path` | — | Directory containing `image/`, `Images/`, or unified image files. |
 | `image_pattern` | `str` or `Pattern` | `UNIFIED_IMAGE_PATTERN` | Regex with named groups to parse filenames. Extension auto-detected if default. |
 | `mask_pattern` | `str` or `Pattern` | `UNIFIED_MASK_PATTERN` | Regex with named groups to parse mask filenames. |
 | `filters` | `dict[str, str]` | `None` | Column → regex patterns applied after metadata build (AND logic). |
+| `image_subdir_pattern` | `str` | `None` | Glob pattern for raw vendor files. `None` = auto (checks `Images/` for operetta, `[A-P]/` for mica). Set to `"Images/"` (operetta) or `"[A-P]/"` (mica) to force a specific raw layout. |
 
 **Properties:**
 
@@ -228,7 +230,7 @@ Split all images into non-overlapping tiles. Each source image is split into `ce
 
 #### `fit_models(ds, channels=None, n_image=50, working_size=64, enable_darkfield=False, root_dir=None) -> Path`
 
-Fit BaSiC models for specified channels. Saves pickled models and flatfield/darkfield images to `root_dir/BaSiC_model/`.
+Fit BaSiC models for specified channels. Saves pickled models and flatfield/darkfield images to `root_dir/.microprofiler/BaSiC_model/`.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -243,7 +245,7 @@ Fit BaSiC models for specified channels. Saves pickled models and flatfield/dark
 
 #### `transform_images(ds, channels=None, root_dir=None, inplace=True) -> ImageDataset`
 
-Apply fitted BaSiC models to correct images. Models are loaded from `root_dir/BaSiC_model/`. When `inplace=True` (default), corrected images replace originals in the dataset directory via temp→swap atomicity. When `inplace=False`, corrected images are written to `root_dir/BaSiC_corrected/`.
+Apply fitted BaSiC models to correct images. Models are loaded from `root_dir/.microprofiler/BaSiC_model/`. When `inplace=True` (default), corrected images replace originals in the dataset directory via temp→swap atomicity. When `inplace=False`, corrected images are written to `root_dir/BaSiC_corrected/`.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -318,9 +320,9 @@ Profile a single image stack at the whole-image level.
 
 **Returns:** `dict` — flat dict with keys like `intensity_mean_{ch}`, `intensity_sum_{ch}`, `intensity_q{q}_{ch}`, and optionally `shape_area_{ch}`, `shape_n_object_{ch}`, `shape_mean_object_area_{ch}`.
 
-#### `profile_images(ds, channels=None, thresholds=None, db_path=None, table_name="image") -> Optional[pd.DataFrame]`
+#### `profile_images(ds, channels=None, thresholds=None, db_path=None, table_name="image", n_workers=1) -> Optional[pd.DataFrame]`
 
-Profile all images in a dataset at the whole-image level.
+Profile all images in a dataset at the whole-image level. Uses `ProcessPoolExecutor` when `n_workers > 1`.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -329,6 +331,7 @@ Profile all images in a dataset at the whole-image level.
 | `thresholds` | `dict[str, float]` | `None` | Per-channel thresholds. |
 | `db_path` | `str` or `Path` | `None` | SQLite output path. `None` = return DataFrame. |
 | `table_name` | `str` | `"image"` | Table name for DB output. |
+| `n_workers` | `int` | `1` | Number of worker processes (`1` = sequential). Default: half of CPU cores. |
 
 **Returns:** `pd.DataFrame` or `None` — results DataFrame if `db_path` is `None`.
 
@@ -372,9 +375,9 @@ Measure shape, intensity, and texture for every labeled object in a mask. Return
 | GLCM | `glcm_{prop}_d{d}_{ch}` | Texture features: contrast, dissimilarity, homogeneity, energy, correlation, ASM, entropy. |
 | Correlation | `correlation_pearson_{chA}_{chB}` | Per-object Pearson R between channel pairs. |
 
-#### `profile_objects(ds, mask_name, parent_mask_name=None, intensity_channels=None, radial_channels=None, radial_n_bins=5, granularity_channels=None, glcm_channels=None, glcm_distances=None, correlation_pairs=None, db_path=None, table_name=None) -> Optional[pd.DataFrame]`
+#### `profile_objects(ds, mask_name, parent_mask_name=None, intensity_channels=None, radial_channels=None, radial_n_bins=5, granularity_channels=None, glcm_channels=None, glcm_distances=None, correlation_pairs=None, db_path=None, table_name=None, n_workers=1, **extra_kwargs) -> Optional[pd.DataFrame]`
 
-Profile all objects in a dataset for a given mask across all images. Iterates over every row in the dataset, loads the image + mask pair, runs `measure_objects`, and aggregates results.
+Profile all objects in a dataset for a given mask across all images. Uses `ProcessPoolExecutor` when `n_workers > 1`.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -390,6 +393,8 @@ Profile all objects in a dataset for a given mask across all images. Iterates ov
 | `correlation_pairs` | `list[tuple[str,str]]` | `None` | Channel pairs for Pearson correlation. |
 | `db_path` | `str` or `Path` | `None` | SQLite output path. `None` = return DataFrame. |
 | `table_name` | `str` | `mask_name` | DB table name (defaults to mask name). |
+| `n_workers` | `int` | `1` | Number of worker processes (`1` = sequential). Default: half of CPU cores. |
+| `**extra_kwargs` | `dict` | — | Extra kwargs forwarded to `measure_objects()` (e.g. `granularity_kwargs`, `glcm_kwargs`, `radial_kwargs`). |
 
 **Returns:** `pd.DataFrame` or `None` — results DataFrame if `db_path` is `None`.
 
@@ -403,5 +408,5 @@ Extra property factories for `skimage.measure.regionprops_table`.
 |---------|-----------|----------------|
 | `make_radial_distribution(nbins, channel)` | `nbins: int=4`, `channel: int=0` | `radial_bin{i}_ch{c}` — fraction of total intensity per radial shell (i=0 outermost). |
 | `make_granularity(scales, channel, subsample_size, element_size)` | `scales: sequence`, `channel: int=0`, `subsample_size: float=256`, `element_size: int=10` | `granularity_scale{s}_ch{c}` — texture removed at each scale. |
-| `make_glcm(distances, angles, levels, channel, props)` | `distances: sequence=(1,2,4,8)`, `angles: sequence=(0, π/4, π/2, 3π/4)`, `levels: int=8`, `channel: int=0`, `props: sequence=(contrast, dissimilarity, homogeneity, energy, correlation, asm, entropy)` | `glcm_{prop}_d{d}_ch{c}` — texture features. |
+| `make_glcm(distances, angles, levels, channel, props)` | `distances: sequence=(1,2,4,8)`, `angles: sequence=(0, π/4, π/2, 3π/4)` radians, `levels: int=8`, `channel: int=0`, `props: sequence=(contrast, dissimilarity, homogeneity, energy, correlation, asm, entropy)` | `glcm_{prop}_d{d}_ch{c}` — texture features. Pipeline accepts angles in **degrees** and converts to radians automatically. |
 | `measure_channel_correlation(label_image, multichannel_image, channel_pairs)` | `label_image: (H,W) int`, `multichannel_image: (H,W,C) float`, `channel_pairs: list of (a,b)` | `correlation_pearson_ch{a}_ch{b}` — per-object Pearson R. |

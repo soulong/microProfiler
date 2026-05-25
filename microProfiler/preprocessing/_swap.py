@@ -76,7 +76,8 @@ class TempSwap:
         try:
             self._swap()
         except Exception:
-            log.exception("TempSwap: swap failed after processing — target may be inconsistent")
+            log.exception("TempSwap: swap failed — cleaning up temp files")
+            self._cleanup_temp()
             raise
 
         return False

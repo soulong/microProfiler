@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Callable, Optional, Union
 
 import numpy as np
+import pandas as pd
 from scipy.ndimage import zoom as ndi_zoom
 from tqdm import tqdm
 
@@ -94,7 +95,8 @@ def resize_dataset(
     for _, row in metadata.iterrows():
         img_dir = row["directory"]
         for ch in ds.intensity_colnames:
-            all_paths.append(Path(img_dir) / row[ch])
+            if pd.notna(row[ch]):
+                all_paths.append(Path(img_dir) / row[ch])
 
     with TempSwap(target_dir, "resize") as swap:
         for i, src in enumerate(tqdm(all_paths, desc="Resizing", unit="img")):

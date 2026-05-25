@@ -1,0 +1,10 @@
+include README.md
+include LICENSE
+include CLAUDE.md
+include micro.yml
+include pyproject.toml
+graft examples
+graft tests
+prune tests/test_result
+global-exclude __pycache__
+global-exclude *.pyc
