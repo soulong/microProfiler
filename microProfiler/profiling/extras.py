@@ -72,11 +72,24 @@ def make_radial_distribution(
     """Radial distribution callables.
 
     Columns: ``radial_bin{i}_ch{channel}`` (i=0 → outermost).
+
+    Uses id(mask)-based caching: the full radial spectrum is computed
+    once per object, and each per-bin closure reads its value from the
+    cached array.
     """
+    _state = {"last_id": None, "result": None}
+
+    def _compute(mask, intensity):
+        mid = id(mask)
+        if _state["last_id"] != mid:
+            _state["last_id"] = mid
+            _state["result"] = _radial_all(mask, intensity, nbins=nbins, channel=channel)
+        return _state["result"]
+
     fns = []
     for b in range(nbins):
-        def _fn(mask, intensity, _b=b, _nbins=nbins, _ch=channel):
-            return float(_radial_all(mask, intensity, nbins=_nbins, channel=_ch)[_b])
+        def _fn(mask, intensity, _b=b):
+            return float(_compute(mask, intensity)[_b])
         fns.append(_named(_fn, f"radial_bin{b}_ch{channel}"))
     return fns
 
@@ -141,17 +154,29 @@ def make_granularity(
     """Granularity callables.
 
     Columns: ``granularity_scale{s}_ch{channel}``.
+
+    Uses id(mask)-based caching: the full granularity spectrum is
+    computed once per object.
     """
     scales = tuple(scales)
     log.debug("Granularity: scales=%s, element_size=%s, subsample=%s", scales, element_size, subsample_size)
+
+    _state = {"last_id": None, "result": None}
+
+    def _compute(mask, intensity):
+        mid = id(mask)
+        if _state["last_id"] != mid:
+            _state["last_id"] = mid
+            _state["result"] = _granularity_all(
+                mask, intensity, scales=scales, channel=channel,
+                subsample_size=subsample_size, element_size=element_size,
+            )
+        return _state["result"]
+
     fns = []
     for i, s in enumerate(scales):
-        def _fn(mask, intensity, _i=i, _scales=scales, _ch=channel,
-                _sub=subsample_size, _el=element_size):
-            return float(
-                _granularity_all(mask, intensity, scales=_scales, channel=_ch,
-                                 subsample_size=_sub, element_size=_el)[_i]
-            )
+        def _fn(mask, intensity, _i=i):
+            return float(_compute(mask, intensity)[_i])
         fns.append(_named(_fn, f"granularity_scale{s}_ch{channel}"))
     return fns
 
@@ -218,21 +243,34 @@ def make_glcm(
     """GLCM callables.
 
     Columns: ``glcm_{prop}_d{distance}_ch{channel}``.
+
+    Uses id(mask)-based caching: the full GLCM for all distances × angles
+    is computed once per object, and each per-property-per-distance
+    closure reads its value from the cached array.
     """
     distances = tuple(distances)
     angles = tuple(angles)
     props = tuple(props)
     log.debug("GLCM: distances=%s, angles=%d, levels=%d, props=%s", distances, len(angles), levels, props)
+
+    _state = {"last_id": None, "result": None}
+
+    def _compute(mask, intensity):
+        mid = id(mask)
+        if _state["last_id"] != mid:
+            _state["last_id"] = mid
+            _state["result"] = _glcm_all(
+                mask, intensity, distances=distances, angles=angles,
+                levels=levels, channel=channel, props=props,
+            )
+        return _state["result"]
+
     fns = []
     for di, d in enumerate(distances):
         for pi, p in enumerate(props):
             idx = di * len(props) + pi
-            def _fn(mask, intensity, _idx=idx, _dists=distances, _angles=angles,
-                    _levels=levels, _ch=channel, _props=props):
-                return float(
-                    _glcm_all(mask, intensity, distances=_dists, angles=_angles,
-                              levels=_levels, channel=_ch, props=_props)[_idx]
-                )
+            def _fn(mask, intensity, _idx=idx):
+                return float(_compute(mask, intensity)[_idx])
             fns.append(_named(_fn, f"glcm_{p}_d{d}_ch{channel}"))
     return fns
 
