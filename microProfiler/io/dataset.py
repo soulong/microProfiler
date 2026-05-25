@@ -62,6 +62,17 @@ def _detect_intensity_suffix(directory: Path) -> str:
     return list(present.keys())[0]
 
 
+def _has_row_subdirs(directory: Path) -> bool:
+    """Check if *directory* contains single-letter subdirectories (mica raw layout)."""
+    try:
+        for entry in directory.iterdir():
+            if entry.is_dir() and entry.name.isalpha() and len(entry.name) == 1:
+                return True
+    except OSError:
+        pass
+    return False
+
+
 # ── Default regex patterns ──────────────────────────────────────────────
 # Unified naming: {well}_f{field}_z{stack}_t{timepoint}_ch{channel}.tiff
 # Non-capturing suffix group allows transformation steps (z-projection,
@@ -88,7 +99,8 @@ class ImageDataset:
     Parameters
     ----------
     measurement_dir : str or Path
-        Directory containing either ``Images/`` subfolder or unified image files.
+        Directory containing either ``Images/`` or ``image/`` subfolder,
+        or unified image files directly.
     image_pattern : str or Pattern, optional
         Regex with named groups to parse image filenames.  Defaults to
         ``UNIFIED_IMAGE_PATTERN`` with auto-detected extension.
@@ -97,6 +109,12 @@ class ImageDataset:
     filters : dict of str → str, optional
         Column → regex pattern pairs applied after metadata build.
         Only rows matching all filters are kept (AND logic).
+    image_subdir_pattern : str, optional
+        Glob pattern relative to ``measurement_dir`` for raw vendor files.
+        ``None`` (default) auto-detects: checks ``image/`` first for
+        converted data, then ``Images/`` (operetta), then ``[A-P]/`` (mica).
+        Set to ``"Images/"`` for operetta or ``"[A-P]/"`` for mica to force
+        a specific raw layout.
     """
 
     def __init__(
@@ -105,10 +123,12 @@ class ImageDataset:
         image_pattern: Optional[Union[str, re.Pattern]] = None,
         mask_pattern: Optional[Union[str, re.Pattern]] = None,
         filters: Optional[Dict[str, str]] = None,
+        image_subdir_pattern: Optional[str] = None,
     ):
         self.measurement_dir = Path(measurement_dir)
         self._image_pattern = image_pattern or UNIFIED_IMAGE_PATTERN
         self._mask_pattern = mask_pattern or UNIFIED_MASK_PATTERN
+        self._image_subdir_pattern = image_subdir_pattern
         self._metadata: Optional[pd.DataFrame] = None
         self._intensity_colnames: List[str] = []
         self._mask_colnames: List[str] = []
@@ -169,39 +189,59 @@ class ImageDataset:
         or converted to integer if present (post-tiling).
         """
         search_dir = self.measurement_dir
-        images_subdir = self.measurement_dir / "Images"
-        if images_subdir.is_dir() and list(images_subdir.glob("*.tiff")):
-            search_dir = images_subdir
 
-        # Auto-detect extension for default pattern
+        # 1. Always check for converter output first (image/)
+        image_subdir = self.measurement_dir / "image"
+        if image_subdir.is_dir() and (
+            list(image_subdir.glob("*.tiff")) or list(image_subdir.glob("*.tif"))
+        ):
+            search_dir = image_subdir
+            self.measurement_dir = image_subdir
+            log.debug("Using converter output directory: %s", search_dir)
+
+        elif self._image_subdir_pattern is not None:
+            # 2. Explicit raw vendor pattern — scope glob to this pattern
+            pass  # search_dir stays as measurement_dir; glob pattern applied below
+
+        else:
+            # 3. Auto-detect raw vendor layout
+            images_subdir = self.measurement_dir / "Images"
+            if images_subdir.is_dir() and list(images_subdir.glob("*.tiff")):
+                search_dir = images_subdir
+            elif _has_row_subdirs(self.measurement_dir):
+                pass  # mica layout: search_dir stays as measurement_dir
+
+        # Auto-detect extension only within the chosen search_dir
         if self._image_pattern is UNIFIED_IMAGE_PATTERN:
             ext = _detect_intensity_suffix(search_dir)
             self._image_pattern = re.compile(_UNIFIED_IMAGE_BASE + re.escape(ext))
             log.debug("Detected image extension: %s in %s", ext, search_dir)
 
-        all_files = [Path(p) for p in glob(str(search_dir / "**/*"), recursive=True)]
+        # Build the glob pattern
+        if search_dir == image_subdir:
+            # Converted data: flat directory, simple glob
+            all_files = [Path(p) for p in glob(str(search_dir / "*"))]
+        elif self._image_subdir_pattern is not None:
+            # Raw vendor with explicit pattern
+            all_files = [Path(p) for p in glob(
+                str(search_dir / self._image_subdir_pattern / "**/*"), recursive=True
+            )]
+        elif _has_row_subdirs(self.measurement_dir):
+            # Mica raw: scope to single-letter row directories
+            all_files = [Path(p) for p in glob(
+                str(search_dir / "[A-P]" / "**/*"), recursive=True
+            )]
+        else:
+            all_files = [Path(p) for p in glob(str(search_dir / "**/*"), recursive=True)]
 
         if not all_files:
             raise FileNotFoundError(
-                f"No files found in {self.measurement_dir} or its Images/ subdirectory"
+                f"No files found in {search_dir}"
             )
 
         image_paths = [p for p in all_files if re.search(self._image_pattern, p.name)]
         mask_paths = [p for p in all_files if re.search(self._mask_pattern, p.name)]
         log.debug("Found %d intensity images, %d mask images", len(image_paths), len(mask_paths))
-
-        if not image_paths:
-            image_subdir = self.measurement_dir / "image"
-            has_tiffs = image_subdir.is_dir() and list(image_subdir.glob("*.tiff"))
-            if search_dir != image_subdir and has_tiffs:
-                search_dir = image_subdir
-                self.measurement_dir = image_subdir
-                if self._image_pattern is UNIFIED_IMAGE_PATTERN:
-                    ext = _detect_intensity_suffix(search_dir)
-                    self._image_pattern = re.compile(_UNIFIED_IMAGE_BASE + re.escape(ext))
-                all_files = [Path(p) for p in glob(str(search_dir / "**/*"), recursive=True)]
-                image_paths = [p for p in all_files if re.search(self._image_pattern, p.name)]
-                mask_paths = [p for p in all_files if re.search(self._mask_pattern, p.name)]
 
         if not image_paths:
             raise FileNotFoundError(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -154,14 +155,15 @@ class ProfilingConfig(BaseModel):
         None, ge=2, le=256, description="GLCM quantization levels",
     )
     object_glcm_angles: Optional[str] = Field(
-        None, description="Comma-separated GLCM angles in radians (e.g. '0,0.785,1.571,2.356')",
+        None, description="Comma-separated GLCM angles in degrees (e.g. '0,90,180,270')",
     )
     correlation_pairs: Optional[List[List[str]]] = Field(
         None, description="Channel pairs for correlation",
     )
     n_workers: int = Field(
-        1, ge=1, le=64,
-        description="Number of worker threads for parallel profiling (1 = sequential)",
+        default_factory=lambda: max(1, (os.cpu_count() or 1) // 2),
+        ge=1, le=64,
+        description="Number of worker processes for parallel profiling (default: half of CPU cores)",
     )
 
 

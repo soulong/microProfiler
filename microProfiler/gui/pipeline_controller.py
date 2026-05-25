@@ -114,6 +114,20 @@ class PipelineController(QObject):
         if hasattr(self._w, "_worker") and self._w._worker is not None:
             self._w._worker.cancel()
 
+    def _save_session_params(self, sf: SessionFile) -> None:
+        """Save current step panel parameters to session.json."""
+        settings = DictSettings()
+        for step in self._w._all_step_panels:
+            step.save_to_settings(settings)
+        sf.save_all_params(settings.to_dict())
+        data = sf.load()
+        if data:
+            data["steps_enabled"] = {
+                step.step_name: step.is_enabled()
+                for step in self._w._all_step_panels
+            }
+            sf.save(data)
+
     # ── Pipeline run handlers ────────────────────────────────────────────
 
     def _missing_input(self) -> bool:
@@ -128,6 +142,7 @@ class PipelineController(QObject):
         self._w._set_running(True)
         sf = SessionFile(self._output_path())
         sf.set_running(True)
+        self._save_session_params(sf)
         cfg = self._build_step_config(self._w._convert_panel)
         self._w._worker = self._ensure_worker()
         self._current_run_gen = self._worker_gen
@@ -170,6 +185,7 @@ class PipelineController(QObject):
         self._w._set_running(True)
         sf = SessionFile(self._output_path())
         sf.set_running(True)
+        self._save_session_params(sf)
 
         cfg = self._build_base_config()
         executed_steps = []
@@ -233,6 +249,7 @@ class PipelineController(QObject):
         self._w._set_running(True)
         sf = SessionFile(self._output_path())
         sf.set_running(True)
+        self._save_session_params(sf)
         cfg = self._build_step_config(self._w._segment_panel)
         self._w._worker = self._ensure_worker()
         self._current_run_gen = self._worker_gen
@@ -294,6 +311,7 @@ class PipelineController(QObject):
         self._w._set_running(True)
         sf = SessionFile(self._output_path())
         sf.set_running(True)
+        self._save_session_params(sf)
         cfg = self._build_step_config(self._w._profile_panel)
         self._w._worker = self._ensure_worker()
         self._current_run_gen = self._worker_gen
@@ -337,6 +355,7 @@ class PipelineController(QObject):
         self._w._set_running(True)
         sf = SessionFile(self._output_path())
         sf.set_running(True)
+        self._save_session_params(sf)
         self._w._worker = self._ensure_worker()
         self._current_run_gen = self._worker_gen
         self._w._worker.finished.connect(self._on_pipeline_finished, Qt.ConnectionType.QueuedConnection)
@@ -360,7 +379,9 @@ class PipelineController(QObject):
         sf = SessionFile(self._output_path())
         sf.set_running(False)
         for step in self._w._all_step_panels:
-            sf.add_step(step.step_name)
+            section = step.build_config_section()
+            if section and step.is_enabled():
+                sf.add_step(step.step_name)
         updated_ds = getattr(self._w._worker, "_result_ds", None)
         if updated_ds is not None:
             self._w._state.dataset = updated_ds
@@ -379,11 +400,12 @@ class PipelineController(QObject):
         self._w._set_running(True)
         sf = SessionFile(self._output_path())
         sf.set_running(True)
+        self._save_session_params(sf)
         cfg = self._build_step_config(step)
 
         if step.step_name == "basic" and cfg.basic_correction is not None:
             root = self._output_path()
-            model_dir = root / "BaSiC_model"
+            model_dir = root / ".microprofiler" / "BaSiC_model"
             if model_dir.exists() and any(model_dir.glob("model_*.pkl")):
                 if "fit" in cfg.basic_correction.mode:
                     cfg.basic_correction.mode = "transform"
@@ -432,6 +454,7 @@ class PipelineController(QObject):
         self._w._set_running(True)
         sf = SessionFile(self._output_path())
         sf.set_running(True)
+        self._save_session_params(sf)
         cfg = self._build_base_config()
         section = self._w._basic_panel.build_config_section()
         section["mode"] = "fit"

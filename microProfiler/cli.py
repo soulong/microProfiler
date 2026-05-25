@@ -95,7 +95,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument(
         "--workers", "-w", type=int, default=None, metavar="N",
-        help="Number of worker threads for parallel profiling (default: 1, sequential)",
+        help="Number of worker processes for parallel profiling (default: half of CPU cores)",
     )
 
     # ── convert ─────────────────────────────────────────────────────────

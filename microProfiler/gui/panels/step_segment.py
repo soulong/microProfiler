@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QScrollArea,
-    QSizePolicy,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -56,6 +55,7 @@ class SegmentBlockWidget(QWidget):
         self.block_index = block_index
         self._on_remove = on_remove
         self._channels = channels
+        self._syncing = False
         self._build_ui()
 
     def _build_ui(self):
@@ -79,10 +79,12 @@ class SegmentBlockWidget(QWidget):
         row1.addWidget(QLabel("Model:"))
         self._model_name = QComboBox()
         self._model_name.setEditable(True)
-        self._model_name.addItems(["cpsam", "cyto", "nuclei", "cyto2"])
+        self._model_name.addItems(["cpsam"])
+        self._model_name.setCurrentText("cpsam")
         row1.addWidget(self._model_name)
         self._model_browse = QPushButton("Browse...")
         self._model_browse.setProperty("class", "secondary")
+        self._model_browse.clicked.connect(self._browse_model)
         row1.addWidget(self._model_browse)
         row1.addStretch()
         self._remove_btn = QPushButton("✕ Remove")
@@ -167,10 +169,9 @@ class SegmentBlockWidget(QWidget):
 
         # Preview row — compact, top-aligned, no collapse when empty
         preview_row = QHBoxLayout()
-        preview_row.setSpacing(8)
+        preview_row.setSpacing(4)
         preview_row.setContentsMargins(0, 0, 0, 0)
         preview_row.setAlignment(Qt.AlignTop)
-        preview_row.addStretch()
 
         c1_col = QVBoxLayout()
         c1_col.setSpacing(0)
@@ -180,9 +181,7 @@ class SegmentBlockWidget(QWidget):
         c1_label.setContentsMargins(0, 0, 0, 2)
         c1_col.addWidget(c1_label)
         self._c1_view = ImageViewer()
-        self._c1_view.setMinimumSize(0, 0)
-        self._c1_view.setMaximumSize(200, 200)
-        self._c1_view.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self._c1_view.setFixedSize(300, 300)
         c1_col.addWidget(self._c1_view)
         preview_row.addLayout(c1_col)
 
@@ -194,9 +193,7 @@ class SegmentBlockWidget(QWidget):
         c2_label.setContentsMargins(0, 0, 0, 2)
         c2_col.addWidget(c2_label)
         self._c2_view = ImageViewer()
-        self._c2_view.setMinimumSize(0, 0)
-        self._c2_view.setMaximumSize(200, 200)
-        self._c2_view.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self._c2_view.setFixedSize(300, 300)
         c2_col.addWidget(self._c2_view)
         preview_row.addLayout(c2_col)
 
@@ -208,14 +205,22 @@ class SegmentBlockWidget(QWidget):
         mask_label.setContentsMargins(0, 0, 0, 2)
         mask_col.addWidget(mask_label)
         self._mask_view = ImageViewer()
-        self._mask_view.setMinimumSize(0, 0)
-        self._mask_view.setMaximumSize(200, 200)
-        self._mask_view.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self._mask_view.setFixedSize(300, 300)
         mask_col.addWidget(self._mask_view)
         preview_row.addLayout(mask_col)
 
-        preview_row.addStretch()
         layout.addLayout(preview_row)
+
+        # Sync zoom/pan/reset across all three viewers
+        self._c1_view.zoomed.connect(lambda: self._sync_views(self._c1_view))
+        self._c1_view.panned.connect(lambda: self._sync_views(self._c1_view))
+        self._c2_view.zoomed.connect(lambda: self._sync_views(self._c2_view))
+        self._c2_view.panned.connect(lambda: self._sync_views(self._c2_view))
+        self._mask_view.zoomed.connect(lambda: self._sync_views(self._mask_view))
+        self._mask_view.panned.connect(lambda: self._sync_views(self._mask_view))
+        self._c1_view.view_reset.connect(self._reset_all_views)
+        self._c2_view.view_reset.connect(self._reset_all_views)
+        self._mask_view.view_reset.connect(self._reset_all_views)
 
     def get_chan1(self) -> List[str]:
         return [cb.text() for cb in self._chan1_checkboxes if cb.isChecked()]
@@ -308,6 +313,40 @@ class SegmentBlockWidget(QWidget):
         for placeholder in (self._chan1_placeholder, self._chan2_placeholder):
             if placeholder is not None:
                 placeholder.setEnabled(not locked)
+
+    def _browse_model(self) -> None:
+        from PySide6.QtWidgets import QFileDialog
+
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select Cellpose Model",
+            "", "Model files (*.pt *.torch);;All files (*)",
+        )
+        if path:
+            self._model_name.setCurrentText(path)
+
+    def _sync_views(self, source: ImageViewer) -> None:
+        """Copy zoom, pan, and internal state to the other two viewers."""
+        if self._syncing:
+            return
+        self._syncing = True
+        try:
+            t = source.transform()
+            h = source.horizontalScrollBar().value()
+            v_bar = source.verticalScrollBar().value()
+            for view in (self._c1_view, self._c2_view, self._mask_view):
+                if view is not source:
+                    view.setTransform(t)
+                    view.horizontalScrollBar().setValue(h)
+                    view.verticalScrollBar().setValue(v_bar)
+                    view._fit_to_view = source._fit_to_view
+                    view._zoom_level = source._zoom_level
+        finally:
+            self._syncing = False
+
+    def _reset_all_views(self) -> None:
+        """Reset zoom/pan on all three preview viewers."""
+        for v in (self._c1_view, self._c2_view, self._mask_view):
+            v._reset_view()
 
 
 class SegmentStepPanel(BaseStepPanel):
@@ -540,22 +579,16 @@ class SegmentStepPanel(BaseStepPanel):
     def set_preview_c1(self, block_index: int, arr: np.ndarray):
         if block_index < len(self._blocks):
             block = self._blocks[block_index]
-            block._c1_view.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-            block._c1_view.setMinimumSize(140, 140)
             block._c1_view.set_image(arr)
 
     def set_preview_c2(self, block_index: int, arr: np.ndarray):
         if block_index < len(self._blocks):
             block = self._blocks[block_index]
-            block._c2_view.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-            block._c2_view.setMinimumSize(140, 140)
             block._c2_view.set_image(arr)
 
     def set_preview_mask(self, block_index: int, mask: np.ndarray):
         if block_index < len(self._blocks):
             block = self._blocks[block_index]
-            block._mask_view.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-            block._mask_view.setMinimumSize(140, 140)
             qimg = _mask_to_colored_qimage(mask)
             block._mask_view.set_image(qimg)
 

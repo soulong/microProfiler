@@ -143,7 +143,7 @@ def fit_models(
     metadata = ds.metadata
     root = Path(root_dir) if root_dir else ds.measurement_dir.parent
 
-    model_dir = root / "BaSiC_model"
+    model_dir = root / ".microprofiler" / "BaSiC_model"
     model_dir.mkdir(parents=True, exist_ok=True)
 
     for ci, chan in enumerate(channels):
@@ -216,13 +216,13 @@ def transform_images(
 
     total_items = sum(
         1 for chan in channels
-        if (root / "BaSiC_model" / f"model_{chan}.pkl").exists()
+        if (root / ".microprofiler" / "BaSiC_model" / f"model_{chan}.pkl").exists()
     )
     item_idx = 0
 
     with TempSwap(target_dir, "basic") as swap:
         for chan in channels:
-            model_path = root / "BaSiC_model" / f"model_{chan}.pkl"
+            model_path = root / ".microprofiler" / "BaSiC_model" / f"model_{chan}.pkl"
             if not model_path.exists():
                 continue
 

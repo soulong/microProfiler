@@ -171,7 +171,7 @@ class MainWindow(QMainWindow):
 
         self._convert_splitter.addWidget(left_panel)
         self._convert_splitter.addWidget(right_panel)
-        self._convert_splitter.setSizes([500, 500])
+        self._convert_splitter.setSizes([700, 300])
         convert_layout.addWidget(self._convert_splitter, 1)
         self._stack.addWidget(convert_page)
 
@@ -322,7 +322,9 @@ class MainWindow(QMainWindow):
         if path:
             self._input_dir.setText(path)
             if not self._output_manually_set:
+                self._output_dir.blockSignals(True)
                 self._output_dir.setText(path)
+                self._output_dir.blockSignals(False)
             self._on_input_changed()
 
     def _browse_output(self):
@@ -337,6 +339,14 @@ class MainWindow(QMainWindow):
     @staticmethod
     def _detect_format(path: Path) -> str:
         """Auto-detect vendor format by scanning directory structure."""
+        # Already converted: image/ subdirectory with unified .tiff files
+        image_subdir = path / "image"
+        if image_subdir.is_dir() and (
+            list(image_subdir.glob("*.tiff")) or list(image_subdir.glob("*.tif"))
+        ):
+            # Peek inside image/ to guess original vendor (well naming differs)
+            # Actually both formats look identical after conversion; default operetta
+            return "operetta"
         # Operetta: Images/ subdirectory with .tiff files
         if (path / "Images").is_dir() and list((path / "Images").glob("*.tiff")):
             return "operetta"
@@ -345,6 +355,15 @@ class MainWindow(QMainWindow):
             if d.is_dir() and len(d.name) == 1 and d.name.isalpha():
                 return "mica"
         return "operetta"  # fallback default
+
+    @staticmethod
+    def _is_converted(output_path: Path) -> bool:
+        """Check whether *output_path* contains converted unified image files."""
+        image_subdir = output_path / "image"
+        return (
+            image_subdir.is_dir()
+            and bool(list(image_subdir.glob("*.tiff")) or list(image_subdir.glob("*.tif")))
+        )
 
     def _on_input_changed(self):
         path = Path(self._input_dir.text())
@@ -363,15 +382,17 @@ class MainWindow(QMainWindow):
 
         if path.exists():
             try:
-                ds = ImageDataset(path)
+                # Pass raw vendor pattern so build_metadata scopes file search
+                raw_pattern = None
+                if not self._is_converted(path):
+                    if detected == "operetta":
+                        raw_pattern = "Images/"
+                    elif detected == "mica":
+                        raw_pattern = "[A-P]/"
+                ds = ImageDataset(path, image_subdir_pattern=raw_pattern)
                 self._state.dataset = ds
 
-                # Check if the dataset has already been converted
-                is_converted = (
-                    output_path
-                    and (output_path / "Images").is_dir()
-                    and list((output_path / "Images").glob("*.tiff"))
-                )
+                is_converted = self._is_converted(output_path)
 
                 if is_converted:
                     # Converted dataset: enable seg + profile, populate channels
@@ -385,7 +406,7 @@ class MainWindow(QMainWindow):
                     self._update_convert_info(ds)
 
                     # Detect completed steps from session.json or disk state
-                    sf = SessionFile(output_path)
+                    sf = SessionFile(path)
                     data = sf.load()
                     if data:
                         locked = data.get("steps_locked", [])
@@ -443,9 +464,8 @@ class MainWindow(QMainWindow):
             self._input_dir.setText(last_dir)
             self._on_input_changed()
 
-        output = Path(self._output_dir.text()) if self._output_dir.text() else None
-        if output and output.is_dir():
-            sf = SessionFile(output)
+        if session_root:
+            sf = SessionFile(Path(session_root))
             data = sf.load()
             if data:
                 locked = data.get("steps_locked", [])
@@ -463,7 +483,7 @@ class MainWindow(QMainWindow):
                     f"Session restored from {data.get('modified', 'unknown')}"
                 )
             else:
-                disk = detect_disk_state(output)
+                disk = detect_disk_state(Path(session_root))
                 if disk.get("convert"):
                     self._convert_panel.set_locked(True)
                     if not disk.get("segment") and not disk.get("profile"):
@@ -522,23 +542,8 @@ class MainWindow(QMainWindow):
         self._debounce_timer.start(500)
 
     def _flush_settings(self) -> None:
-        settings = DictSettings()
-        for step in self._all_step_panels:
-            step.save_to_settings(settings)
-        root = self._output_dir.text() or self._input_dir.text()
-        if root:
-            try:
-                sf = SessionFile(Path(root))
-                sf.save_all_params(settings.to_dict())
-                data = sf.load()
-                if data:
-                    data["steps_enabled"] = {
-                        step.step_name: step.is_enabled()
-                        for step in self._all_step_panels
-                    }
-                    sf.save(data)
-            except Exception as e:
-                logging.getLogger("microProfiler").debug(f"Settings flush failed: {e}")
+        """In-memory only — session.json is written exclusively when steps run."""
+        pass
 
     # ── Convert info display ──────────────────────────────────────────────
 
@@ -552,15 +557,9 @@ class MainWindow(QMainWindow):
         dtype = ds.img_dtype
         masks = ", ".join(ds.mask_colnames) if ds.mask_colnames else "—"
 
-        lines = [f"Path: {ds.measurement_dir}", f"Images: {n}", f"Channels: {ch}"]
-        if shape:
-            lines.append(f"Dimensions: {shape[0]}×{shape[1]}")
-        if dtype is not None:
-            lines.append(f"Data type: {dtype}")
-        if ds.mask_colnames:
-            lines.append(f"Masks: {masks}")
+        lines = [f"Image groups: {n}"]
 
-        # Derive well/field counts from metadata
+        # Wells / Fields after Image groups, before Channels
         meta = ds.metadata
         if meta is not None and "well" in meta.columns:
             n_wells = meta["well"].nunique()
@@ -568,6 +567,15 @@ class MainWindow(QMainWindow):
         if meta is not None and "field" in meta.columns:
             n_fields = meta["field"].nunique()
             lines.append(f"Fields: {n_fields}")
+
+        lines.append(f"Channels: {ch}")
+        if shape:
+            lines.append(f"Dimensions: {shape[0]}×{shape[1]}")
+        if dtype is not None:
+            lines.append(f"Data type: {dtype}")
+        if ds.mask_colnames:
+            lines.append("")  # blank separator before masks
+            lines.append(f"Masks: {masks}")
 
         self._convert_info_label.setText("\n".join(lines))
 
@@ -618,7 +626,6 @@ class MainWindow(QMainWindow):
             step.setEnabled(not running)
 
     def closeEvent(self, event):
-        self._flush_settings()
         for w in (getattr(self, "_worker", None), getattr(self, "_preview_worker", None)):
             if w is not None and hasattr(w, "_thread") and w._thread.isRunning():
                 w._thread.quit()

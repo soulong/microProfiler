@@ -263,8 +263,10 @@ def _run_profile(
             if profiling.object_glcm_levels:
                 obj_kwargs["glcm_kwargs"]["levels"] = profiling.object_glcm_levels
             if profiling.object_glcm_angles:
+                import math
                 obj_kwargs["glcm_kwargs"]["angles"] = [
-                    float(a.strip()) for a in profiling.object_glcm_angles.split(",") if a.strip()
+                    math.radians(float(a.strip()))
+                    for a in profiling.object_glcm_angles.split(",") if a.strip()
                 ]
         if rc and profiling.object_radial_bins != 5:
             obj_kwargs["radial_kwargs"] = {"nbins": profiling.object_radial_bins}

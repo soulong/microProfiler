@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import List, Optional, Tuple
 
 import numpy as np
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QImage, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
@@ -41,7 +41,15 @@ def _array_to_pixmap(arr: np.ndarray, lo: float = 0.1, hi: float = 99.9) -> QPix
 
 
 class ImageViewer(QGraphicsView):
-    """Single image viewer with mouse-wheel zoom and click-drag pan."""
+    """Single image viewer with mouse-wheel zoom and click-drag pan.
+
+    Emits ``zoomed``, ``panned``, and ``view_reset`` signals for
+    synchronizing multiple viewers.
+    """
+
+    zoomed = Signal()
+    panned = Signal()
+    view_reset = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -57,6 +65,7 @@ class ImageViewer(QGraphicsView):
         self.setMinimumSize(100, 100)
 
     def set_image(self, arr: np.ndarray | QImage) -> None:
+        self._reloading = True
         self._scene.clear()
         if isinstance(arr, QImage):
             pixmap = QPixmap.fromImage(arr)
@@ -67,6 +76,7 @@ class ImageViewer(QGraphicsView):
         self.fitInView(self._pixmap_item, Qt.KeepAspectRatio)
         self._fit_to_view = True
         self._zoom_level = 0
+        self._reloading = False
 
     def _reset_view(self) -> None:
         if self._pixmap_item:
@@ -76,6 +86,7 @@ class ImageViewer(QGraphicsView):
 
     def mouseDoubleClickEvent(self, event):
         self._reset_view()
+        self.view_reset.emit()
         super().mouseDoubleClickEvent(event)
 
     def wheelEvent(self, event):
@@ -84,9 +95,16 @@ class ImageViewer(QGraphicsView):
             self.scale(1.15, 1.15)
             self._zoom_level += 1
             self._fit_to_view = False
+            self.zoomed.emit()
         elif delta < 0 and self._zoom_level > 0:
             self.scale(1 / 1.15, 1 / 1.15)
             self._zoom_level -= 1
+            self.zoomed.emit()
+
+    def scrollContentsBy(self, dx, dy):
+        super().scrollContentsBy(dx, dy)
+        if not getattr(self, "_reloading", False):
+            self.panned.emit()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

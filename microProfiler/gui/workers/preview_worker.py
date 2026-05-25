@@ -94,7 +94,7 @@ class PreviewWorker(QObject):
                     if ch not in channels:
                         after_channels.append((ch, img))
                         continue
-                    model_path = model_root / "BaSiC_model" / f"model_{ch}.pkl"
+                    model_path = model_root / ".microprofiler" / "BaSiC_model" / f"model_{ch}.pkl"
                     if model_path.exists():
                         with open(model_path, "rb") as f:
                             model = pickle.load(f)
