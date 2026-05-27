@@ -5,7 +5,6 @@ from typing import Callable, List, Optional
 
 import numpy as np
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QImage
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -24,21 +23,6 @@ from PySide6.QtWidgets import (
 from microProfiler.gui.panels.base_step_panel import BaseStepPanel
 from microProfiler.gui.image_widgets import ImageViewer
 
-
-def _mask_to_colored_qimage(mask: np.ndarray) -> QImage:
-    """Convert a uint16 label mask to a random-color RGB QImage."""
-    labels = np.unique(mask)
-    colors = {0: (0, 0, 0)}
-    for lbl in labels:
-        if lbl == 0:
-            continue
-        rnd = np.random.RandomState(int(lbl) * 7 + 13)
-        colors[int(lbl)] = tuple(int(rnd.randint(60, 256)) for _ in range(3))
-    h, w = mask.shape
-    rgb = np.zeros((h, w, 3), dtype=np.uint8)
-    for lbl, color in colors.items():
-        rgb[mask == lbl] = color
-    return QImage(rgb.data, w, h, 3 * w, QImage.Format.Format_RGB888)
 
 
 class SegmentBlockWidget(QWidget):
@@ -165,13 +149,21 @@ class SegmentBlockWidget(QWidget):
         self._preview_btn.setProperty("class", "secondary")
         row4.addWidget(self._pick_btn)
         row4.addWidget(self._preview_btn)
+        self._mask_toggle_btn = QPushButton("Show Mask")
+        self._mask_toggle_btn.setCheckable(True)
+        self._mask_toggle_btn.setChecked(True)
+        self._mask_toggle_btn.setProperty("class", "secondary")
+        self._mask_toggle_btn.setEnabled(False)
+        self._mask_toggle_btn.clicked.connect(self._on_mask_toggle)
+        row4.addWidget(self._mask_toggle_btn)
         layout.addLayout(row4)
 
-        # Preview row — compact, top-aligned, no collapse when empty
+        # Preview row — centered C1/C2 images, tightly packed
         preview_row = QHBoxLayout()
-        preview_row.setSpacing(4)
+        preview_row.setSpacing(0)
         preview_row.setContentsMargins(0, 0, 0, 0)
-        preview_row.setAlignment(Qt.AlignTop)
+
+        preview_row.addStretch()
 
         c1_col = QVBoxLayout()
         c1_col.setSpacing(0)
@@ -197,30 +189,17 @@ class SegmentBlockWidget(QWidget):
         c2_col.addWidget(self._c2_view)
         preview_row.addLayout(c2_col)
 
-        mask_col = QVBoxLayout()
-        mask_col.setSpacing(0)
-        mask_col.setAlignment(Qt.AlignTop)
-        mask_label = QLabel("Mask:")
-        mask_label.setAlignment(Qt.AlignCenter)
-        mask_label.setContentsMargins(0, 0, 0, 2)
-        mask_col.addWidget(mask_label)
-        self._mask_view = ImageViewer()
-        self._mask_view.setFixedSize(300, 300)
-        mask_col.addWidget(self._mask_view)
-        preview_row.addLayout(mask_col)
+        preview_row.addStretch()
 
         layout.addLayout(preview_row)
 
-        # Sync zoom/pan/reset across all three viewers
+        # Sync zoom/pan/reset across viewers
         self._c1_view.zoomed.connect(lambda: self._sync_views(self._c1_view))
         self._c1_view.panned.connect(lambda: self._sync_views(self._c1_view))
         self._c2_view.zoomed.connect(lambda: self._sync_views(self._c2_view))
         self._c2_view.panned.connect(lambda: self._sync_views(self._c2_view))
-        self._mask_view.zoomed.connect(lambda: self._sync_views(self._mask_view))
-        self._mask_view.panned.connect(lambda: self._sync_views(self._mask_view))
         self._c1_view.view_reset.connect(self._reset_all_views)
         self._c2_view.view_reset.connect(self._reset_all_views)
-        self._mask_view.view_reset.connect(self._reset_all_views)
 
     def get_chan1(self) -> List[str]:
         return [cb.text() for cb in self._chan1_checkboxes if cb.isChecked()]
@@ -324,6 +303,13 @@ class SegmentBlockWidget(QWidget):
         if path:
             self._model_name.setCurrentText(path)
 
+    def _on_mask_toggle(self) -> None:
+        """Show or hide the mask overlay on C1/C2 previews."""
+        visible = self._mask_toggle_btn.isChecked()
+        self._mask_toggle_btn.setText("Hide Mask" if visible else "Show Mask")
+        self._c1_view.set_overlay_visible(visible)
+        self._c2_view.set_overlay_visible(visible)
+
     def _sync_views(self, source: ImageViewer) -> None:
         """Copy zoom, pan, and internal state to the other two viewers."""
         if self._syncing:
@@ -333,7 +319,7 @@ class SegmentBlockWidget(QWidget):
             t = source.transform()
             h = source.horizontalScrollBar().value()
             v_bar = source.verticalScrollBar().value()
-            for view in (self._c1_view, self._c2_view, self._mask_view):
+            for view in (self._c1_view, self._c2_view):
                 if view is not source:
                     view.setTransform(t)
                     view.horizontalScrollBar().setValue(h)
@@ -344,8 +330,8 @@ class SegmentBlockWidget(QWidget):
             self._syncing = False
 
     def _reset_all_views(self) -> None:
-        """Reset zoom/pan on all three preview viewers."""
-        for v in (self._c1_view, self._c2_view, self._mask_view):
+        """Reset zoom/pan on all preview viewers."""
+        for v in (self._c1_view, self._c2_view):
             v._reset_view()
 
 
@@ -406,8 +392,10 @@ class SegmentStepPanel(BaseStepPanel):
         block._pick_btn.clicked.connect(lambda: self.pick_requested.emit(block.block_index))
         block._preview_btn.clicked.connect(lambda: self.preview_requested.emit(block.block_index))
         self._wire_block_signals(block)
-        # Move add button to bottom: remove it, add block, re-add add button
+        # Move add button to bottom: remove it, add spacing+block, re-add add button
         self._blocks_layout.removeItem(self._add_btn_layout)
+        if self._blocks:
+            self._blocks_layout.addSpacing(14)
         self._blocks.append(block)
         self._blocks_layout.addWidget(block)
         self._blocks_layout.addLayout(self._add_btn_layout)
@@ -418,6 +406,10 @@ class SegmentStepPanel(BaseStepPanel):
         self._blocks.remove(block)
         self._blocks_layout.removeWidget(block)
         block.deleteLater()
+        # Re-index surviving blocks so block_index matches list position
+        for i, b in enumerate(self._blocks):
+            b.block_index = i
+        self.parameter_changed.emit()
 
     def populate_channels(self, channels: List[str]) -> None:
         self._channels = channels
@@ -506,6 +498,8 @@ class SegmentStepPanel(BaseStepPanel):
             if m:
                 block_indices.add(int(m.group(1)))
         for idx in sorted(block_indices):
+            if self._blocks:
+                self._blocks_layout.addSpacing(14)
             prefix = f"block_{idx}_"
             cfg = {}
             for key, val in stored.items():
@@ -575,6 +569,9 @@ class SegmentStepPanel(BaseStepPanel):
 
         # Re-add add button at end
         self._blocks_layout.addLayout(self._add_btn_layout)
+        # Fallback: if no blocks were restored, create a default one
+        if not self._blocks:
+            self._add_block(self._channels)
 
     def set_preview_c1(self, block_index: int, arr: np.ndarray):
         if block_index < len(self._blocks):
@@ -589,8 +586,12 @@ class SegmentStepPanel(BaseStepPanel):
     def set_preview_mask(self, block_index: int, mask: np.ndarray):
         if block_index < len(self._blocks):
             block = self._blocks[block_index]
-            qimg = _mask_to_colored_qimage(mask)
-            block._mask_view.set_image(qimg)
+            block._c1_view.overlay_mask(mask)
+            if block._c2_view._base_array is not None:
+                block._c2_view.overlay_mask(mask)
+            block._mask_toggle_btn.setEnabled(True)
+            block._mask_toggle_btn.setChecked(True)
+            block._mask_toggle_btn.setText("Hide Mask")
 
     def load_config_section(self, sections: list) -> None:
         """Restore from a list of SegmentationConfig dicts."""
@@ -606,6 +607,8 @@ class SegmentStepPanel(BaseStepPanel):
         for cfg in sections:
             if not isinstance(cfg, dict):
                 continue
+            if self._blocks:
+                self._blocks_layout.addSpacing(14)
             block = SegmentBlockWidget(
                 len(self._blocks), self._channels,
                 parent=self._container,

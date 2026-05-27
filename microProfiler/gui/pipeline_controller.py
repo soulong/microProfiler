@@ -142,7 +142,6 @@ class PipelineController(QObject):
         self._w._set_running(True)
         sf = SessionFile(self._output_path())
         sf.set_running(True)
-        self._save_session_params(sf)
         cfg = self._build_step_config(self._w._convert_panel)
         self._w._worker = self._ensure_worker()
         self._current_run_gen = self._worker_gen
@@ -173,6 +172,7 @@ class PipelineController(QObject):
             sf = SessionFile(self._output_path())
             sf.create_initial(self._w._format_combo.currentText())
             sf.add_step("convert")
+            self._save_session_params(sf)
             sf.set_running(False)
 
     def run_preprocessing(self) -> None:
@@ -283,15 +283,17 @@ class PipelineController(QObject):
             return
 
         self._sync_seg_masks_to_profiling()
-        obj_mask = self._w._profile_panel.get_object_mask_name()
-        parent_mask = self._w._profile_panel.get_parent_mask_name()
-        if parent_mask and parent_mask == obj_mask:
-            QMessageBox.warning(
-                self._w, "Invalid Mask Selection",
-                "Parent mask cannot be the same as the object mask. "
-                "Please choose a different parent mask or set it to None."
-            )
-            return
+        for block in self._w._profile_panel._blocks:
+            obj_mask = block.get_object_mask_name()
+            parent_mask = block.get_parent_mask_name()
+            if parent_mask and parent_mask == obj_mask:
+                QMessageBox.warning(
+                    self._w, "Invalid Mask Selection",
+                    f"Parent mask cannot be the same as the object mask "
+                    f"('{obj_mask}'). "
+                    "Please choose a different parent mask or set it to None."
+                )
+                return
 
         # Check if result database exists and ask for overwrite confirmation
         db_path = self._output_path() / "results.db"
@@ -618,9 +620,14 @@ class PipelineController(QObject):
     # ── Helpers ──────────────────────────────────────────────────────────
 
     def _sync_seg_masks_to_profiling(self) -> None:
+        mask_names = set()
         seg_names = self._w._segment_panel.get_object_names()
         if seg_names:
-            self._w._profile_panel.populate_masks(["mask_" + n for n in seg_names])
+            mask_names.update("mask_" + n for n in seg_names)
+        if self._w._state.dataset is not None:
+            mask_names.update(self._w._state.dataset.mask_colnames)
+        if mask_names:
+            self._w._profile_panel.populate_masks(list(mask_names))
 
     def on_pipeline_error(self, message: str) -> None:
         self._w._global_progress.show_error(message)

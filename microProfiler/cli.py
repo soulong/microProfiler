@@ -8,7 +8,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from microProfiler.config import PipelineConfig, load_config
+from microProfiler.config import PipelineConfig, ProfilingConfig, load_config
 from microProfiler.logging_utils import set_default_logging_level, setup_logging
 from microProfiler.pipeline import run_pipeline
 
@@ -217,7 +217,7 @@ def main(argv: list[str] | None = None) -> int:
                 prof["object_mask_name"] = args.profile_object
             if args.workers is not None:
                 prof["n_workers"] = args.workers
-            cfg.profiling = prof
+            cfg.profiling = ProfilingConfig(**prof)
 
         run_pipeline(cfg, db_name=args.db, log_file=args.log_file)
         return 0

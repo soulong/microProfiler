@@ -1,4 +1,4 @@
-# microProfiler ![Version](https://img.shields.io/badge/version-0.9.3-blue)
+# microProfiler ![Version](https://img.shields.io/badge/version-0.9.4-blue)
 
 Microscopy image preprocessing, segmentation, and profiling pipeline for multi-well plate data.
 
@@ -46,7 +46,7 @@ Input → Convert[+resize] → Resize → BaSiC → Z-projection → Tile → Se
 4. **Z-projection** (optional) — Max/mean/min projection of Z-stacks
 5. **Tile splitting** (optional) — Non-overlapping tiles
 6. **Segmentation** (optional) — Cellpose-SAM object detection
-7. **Profiling** — Image-level and object-level feature extraction
+7. **Profiling** — Image-level and object-level feature extraction. Supports multi-object profiling (profile multiple masks with different channel/feature settings in a single run via `object_profilings` list).
 
 ## Quick Start (CLI)
 
@@ -63,7 +63,10 @@ microprofiler run /path/to/Measurement\ 1 --format operetta \
   --tile 540 540 \
   --segment cell --segment-channels ch1 \
   --profile-image \
-  --profile-object cell
+  --profile-object cell \
+  --workers 4 \
+  --output /path/to/output \
+  --config examples/pipeline_config.yml
 
 # Run full pipeline on MICA format
 microprofiler run /path/to/Sequence\ 002 --format mica \
@@ -73,10 +76,8 @@ microprofiler run /path/to/Sequence\ 002 --format mica \
 # Convert only (with optional resize and custom output name)
 microprofiler convert /path/to/Measurement\ 1 --format operetta --convert-resize 0.5 --output-name myoutput
 
-# Opt out of in-place processing; opt into vendor file deletion
-microprofiler run /path/to/Measurement\ 1 \
-  --no-basic-inplace --no-zproject-inplace --no-tile-inplace \
-  --delete-original
+# Use a YAML config for full control over all profiling and segmentation parameters
+microprofiler run /path/to/Measurement\ 1 --config examples/pipeline_config.yml
 ```
 
 A complete YAML config with all parameters is at [`examples/pipeline_config.yml`](examples/pipeline_config.yml).
@@ -86,6 +87,8 @@ A complete YAML config with all parameters is at [`examples/pipeline_config.yml`
 ```python
 from pathlib import Path
 from microProfiler.preprocessing.converter import convert_measurement
+from microProfiler.preprocessing.resizer import resize_dataset
+from microProfiler.preprocessing.basic_correction import apply_basic
 from microProfiler.preprocessing.z_projection import z_project_dataset
 from microProfiler.preprocessing.tile_splitter import tile_dataset
 from microProfiler.segmentation.cellpose import segment_dataset
@@ -98,14 +101,16 @@ root = Path(r"/path/to/Measurement 1")
 #    Returns an ImageDataset pointing to "image/" by default
 ds = convert_measurement(root, vendor_format="operetta", resize_factor=0.5)
 
-# 3. Preprocess (in-place by default — files updated in the images/ directory)
+# 2. Preprocess (in-place by default — files updated in the images/ directory)
+ds = resize_dataset(ds, scale_factor=0.5, root_dir=root)
+ds = apply_basic(ds, mode="fit-transform", root_dir=root)
 ds = z_project_dataset(ds, root_dir=root, method="max")
 ds = tile_dataset(ds, root_dir=root, tile_w=540, tile_h=540)
 
-# 4. Segment
+# 3. Segment
 ds = segment_dataset(ds, object_name="cell", chan1=["ch1"])
 
-# 5. Profile
+# 4. Profile
 profile_images(ds, db_path=root / "results.db", table_name="image")
 profile_objects(ds, mask_name="cell",
                 intensity_channels=["ch1", "ch2"],

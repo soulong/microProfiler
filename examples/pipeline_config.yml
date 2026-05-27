@@ -25,7 +25,7 @@ convert:
 # ── Resize (standalone step) ─────────────────────────────────────────────────
 resize:
   # Scale factor for independent resize step after conversion (0.1–4.0, default: 1.0)
-  scale_factor: 0.5
+  scale_factor: 1.0
 
 # ── BaSiC shading correction ─────────────────────────────────────────────────
 basic_correction:
@@ -54,37 +54,43 @@ tile:
   # Tile height in pixels (≥64, default: 1024)
   tile_height: 1024
 
-# ── Segmentation ─────────────────────────────────────────────────────────────
+# ── Segmentation (list format — add multiple entries for multi-object segmentation) ─
 segmentations:
   # Object name used for mask filenames (default: "cell")
-  object_name: cell
+  - object_name: cell
 
-  # First channel group — list of channel names to merge (default: first intensity channel)
-  chan1:
-    - ch1
-    - ch2
+    # First channel group — list of channel names to merge (default: first intensity channel)
+    chan1:
+      - ch1
+      - ch2
 
-  # Second channel group (optional) — list of channel names to merge
-  chan2:
-    - ch3
+    # Second channel group (optional) — list of channel names to merge
+    chan2:
+      - ch3
 
-  # Merge method for chan1: "mean", "max", or "min" (default: mean)
-  merge1: mean
+    # Merge method for chan1: "mean", "max", or "min" (default: mean)
+    merge1: mean
 
-  # Merge method for chan2: "mean", "max", or "min" (default: mean)
-  merge2: mean
+    # Merge method for chan2: "mean", "max", or "min" (default: mean)
+    merge2: mean
 
-  # Cellpose model name or path (default: "cpsam")
-  model_name: cpsam
+    # Cellpose model name or path (default: "cpsam")
+    model_name: cpsam
 
-  # Object diameter in pixels (null = auto-detect)
-  diameter: 30
+    # Object diameter in pixels (null = auto-detect)
+    diameter: 30
 
-  # Cellpose flow threshold (≥0, default: 0.4)
-  flow_threshold: 0.4
+    # Cellpose flow threshold (≥0, default: 0.4)
+    flow_threshold: 0.4
 
-  # Cell probability threshold (≥0, default: 0.0)
-  cellprob_threshold: 0.0
+    # Cell probability threshold (≥0, default: 0.0)
+    cellprob_threshold: 0.0
+
+  # Example: second segmentation for another object
+  # - object_name: nuclei
+  #   chan1:
+  #     - ch1
+  #   model_name: cpsam
 
 # ── Profiling ────────────────────────────────────────────────────────────────
 profiling:
@@ -93,36 +99,64 @@ profiling:
     - ch1
     - ch2
 
-  # Mask name for object-level profiling (requires segmentation step)
-  object_mask_name: cell
+  # Number of worker processes (default: half of CPU cores)
+  n_workers: 4
 
-  # Channels for per-object intensity statistics (null = all channels)
-  object_intensity_channels:
-    - ch1
-    - ch2
+  # Per-object profiling configurations (list — add multiple entries for multi-object profiling)
+  object_profilings:
+    - # Mask name for object-level profiling (requires segmentation step or pre-existing mask)
+      object_mask_name: cell
 
-  # Channels for radial intensity distribution
-  object_radial_channels:
-    - ch1
+      # Optional parent mask for hierarchical object assignment
+      # parent_mask_name: nuclei
 
-  # Number of radial bins (≥1, default: 5)
-  object_radial_bins: 5
+      # Optional output table name in results database (defaults to mask name)
+      # output_table_name: my_cells
 
-  # Channels for granularity spectrum
-  object_granularity_channels:
-    - ch1
+      # Channels for per-object intensity statistics
+      object_intensity_channels:
+        - ch1
+        - ch2
 
-  # Channels for GLCM texture analysis
-  object_glcm_channels:
-    - ch1
+      # Channels for radial intensity distribution
+      object_radial_channels:
+        - ch1
 
-  # GLCM pixel distances
-  object_glcm_distances:
-    - 1
-    - 2
-    - 3
+      # Number of radial bins (≥1, default: 5)
+      object_radial_bins: 5
 
-  # Channel pairs for Pearson correlation [[ch_a, ch_b], ...]
-  correlation_pairs:
-    - - ch1
-      - ch2
+      # Channels for granularity spectrum
+      object_granularity_channels:
+        - ch1
+
+      # Comma-separated pixel radii for granularity (e.g. "1,3,6,8,12")
+      object_granularity_radii: "1,3,6,8,12"
+
+      # Granularity subsample fraction (0.01–1.0)
+      object_granularity_subsample: 1.0
+
+      # Channels for GLCM texture analysis
+      object_glcm_channels:
+        - ch1
+
+      # GLCM pixel distances
+      object_glcm_distances:
+        - 1
+        - 2
+        - 3
+
+      # GLCM quantization levels (2–256)
+      object_glcm_levels: 256
+
+      # GLCM angles in degrees
+      object_glcm_angles: "0,90,180,270"
+
+      # Channel pairs for Pearson correlation [[ch_a, ch_b], ...]
+      correlation_pairs:
+        - - ch1
+          - ch2
+
+    # Example: second object profiling for another mask
+    # - object_mask_name: nuclei
+    #   object_intensity_channels:
+    #     - ch1

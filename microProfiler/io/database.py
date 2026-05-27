@@ -26,6 +26,9 @@ class Database:
         self._local = threading.local()
         log.debug("Database: %s", self.db_path)
 
+    def __del__(self) -> None:
+        self.close()
+
     def _get_conn(self) -> sqlite3.Connection:
         """Get or create a thread-local connection."""
         if not hasattr(self._local, "conn") or self._local.conn is None:
@@ -59,15 +62,13 @@ class Database:
         """
         log.debug("save_table: %s (%d rows, %d cols)", table_name, len(df), len(df.columns))
         conn = self._get_conn()
-        df_copy = df.copy()
-        for col in df_copy.columns:
-            if df_copy[col].dtype == "object":
-                path_mask = df_copy[col].apply(
-                    lambda x: isinstance(x, Path) if pd.notna(x) else False
-                )
-                if path_mask.any():
-                    df_copy[col] = df_copy[col].astype(str)
-        df_copy.to_sql(table_name, conn, if_exists=if_exists, index=False)
+        # Convert Path objects to strings in-place (no copy — caller doesn't reuse df)
+        for col in df.columns:
+            if df[col].dtype == "object" and len(df) > 0:
+                sample = df[col].iloc[0]
+                if isinstance(sample, Path):
+                    df[col] = df[col].astype(str)
+        df.to_sql(table_name, conn, if_exists=if_exists, index=False)
 
     def query(self, sql: str) -> pd.DataFrame:
         """Execute a SELECT query and return results as a DataFrame.

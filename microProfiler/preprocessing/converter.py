@@ -35,6 +35,18 @@ OPERETTA_PATTERN = re.compile(
 MICA_POS_PATTERN = re.compile(r"Pos(\d+)\.(tif|tiff|lof)$", re.IGNORECASE)
 
 
+def _row_to_letter(row: int) -> str:
+    """Convert a 1-based row number to Excel-style letter(s).
+
+    1 → A, 2 → B, ..., 26 → Z, 27 → AA, 28 → AB, etc.
+    """
+    result = ""
+    while row > 0:
+        row, remainder = divmod(row - 1, 26)
+        result = chr(65 + remainder) + result
+    return result
+
+
 def _build_unified_name(
     well: str,
     field: int,
@@ -103,7 +115,7 @@ def _convert_operetta_file(
     """
     row = match.group("row")
     col = match.group("column")
-    raw_well = f"{chr(64 + int(row))}{str(int(col))}"  # 1→A, 2→B, etc.
+    raw_well = f"{_row_to_letter(int(row))}{str(int(col))}"
     field = int(match.group("field"))
     stack = int(match.group("stack"))
     channel = int(match.group("channel"))
@@ -258,70 +270,76 @@ def convert_measurement(
     input_dir = Path(input_dir)
     root_dir = Path(root_dir) if root_dir else input_dir
     output_dir = root_dir / output_name
-    output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
 
-    log.debug(
-        "convert_measurement: input=%s, vendor=%s, resize=%s, output_name=%s, delete_original=%s",
-        input_dir, vendor_format, resize_factor, output_name, delete_original,
-    )
+        log.debug(
+            "convert_measurement: input=%s, vendor=%s, resize=%s, output_name=%s, delete_original=%s",
+            input_dir, vendor_format, resize_factor, output_name, delete_original,
+        )
 
-    converted_count = 0
+        converted_count = 0
 
-    with TempSwap(output_dir, "convert") as swap:
-        if vendor_format == "operetta":
-            img_dir = input_dir / "Images"
-            if not img_dir.is_dir():
-                raise NotADirectoryError(
-                    f"Operetta images subdirectory not found: {img_dir}"
+        with TempSwap(output_dir, "convert") as swap:
+            if vendor_format == "operetta":
+                img_dir = input_dir / "Images"
+                if not img_dir.is_dir():
+                    raise NotADirectoryError(
+                        f"Operetta images subdirectory not found: {img_dir}"
+                    )
+
+                tiff_files = sorted(img_dir.rglob("*.tiff"))
+                if not tiff_files:
+                    raise FileNotFoundError(f"No .tiff files found in {img_dir}")
+
+                log.debug("Operetta: found %d .tiff files", len(tiff_files))
+                for src in tiff_files:
+                    m = OPERETTA_PATTERN.match(src.name)
+                    if m is None:
+                        continue
+                    dst = _convert_operetta_file(src, m, swap.temp_dir, resize_factor)
+                    if dst:
+                        converted_count += 1
+
+                log.info("Converted %d Operetta files → %s", converted_count, output_dir)
+
+            elif vendor_format == "mica":
+                root = _find_mica_root(input_dir)
+                log.debug("MICA: detected root=%s", root)
+
+                row_dirs = sorted(
+                    d for d in root.iterdir()
+                    if d.is_dir() and len(d.name) == 1 and d.name.isalpha() and d.name != "Metadata"
                 )
+                for row_dir in row_dirs:
+                    row_letter = row_dir.name
+                    col_dirs = sorted(
+                        d for d in row_dir.iterdir()
+                        if d.is_dir() and d.name not in ("Metadata", "Images")
+                    )
+                    for col_dir in col_dirs:
+                        col_num = col_dir.name
+                        for src in sorted(col_dir.iterdir()):
+                            m = MICA_POS_PATTERN.match(src.name)
+                            if m is None:
+                                continue
+                            dsts = _convert_mica_file(
+                                src, m, swap.temp_dir, row_letter, col_num, resize_factor,
+                            )
+                            converted_count += len(dsts)
 
-            tiff_files = sorted(img_dir.rglob("*.tiff"))
-            if not tiff_files:
-                raise FileNotFoundError(f"No .tiff files found in {img_dir}")
+                log.info("Converted %d MICA files → %s", converted_count, output_dir)
 
-            log.debug("Operetta: found %d .tiff files", len(tiff_files))
-            for src in tiff_files:
-                m = OPERETTA_PATTERN.match(src.name)
-                if m is None:
-                    continue
-                dst = _convert_operetta_file(src, m, swap.temp_dir, resize_factor)
-                if dst:
-                    converted_count += 1
+            else:
+                raise ValueError(f"Unknown vendor format: {vendor_format}")
 
-            log.info("Converted %d Operetta files → %s", converted_count, output_dir)
+            if converted_count == 0:
+                raise RuntimeError(f"No files converted from {input_dir} ({vendor_format})")
 
-        elif vendor_format == "mica":
-            root = _find_mica_root(input_dir)
-            log.debug("MICA: detected root=%s", root)
-
-            row_dirs = sorted(
-                d for d in root.iterdir()
-                if d.is_dir() and len(d.name) == 1 and d.name.isalpha() and d.name != "Metadata"
-            )
-            for row_dir in row_dirs:
-                row_letter = row_dir.name
-                col_dirs = sorted(
-                    d for d in row_dir.iterdir()
-                    if d.is_dir() and d.name not in ("Metadata", "Images")
-                )
-                for col_dir in col_dirs:
-                    col_num = col_dir.name
-                    for src in sorted(col_dir.iterdir()):
-                        m = MICA_POS_PATTERN.match(src.name)
-                        if m is None:
-                            continue
-                        dsts = _convert_mica_file(
-                            src, m, swap.temp_dir, row_letter, col_num, resize_factor,
-                        )
-                        converted_count += len(dsts)
-
-            log.info("Converted %d MICA files → %s", converted_count, output_dir)
-
-        else:
-            raise ValueError(f"Unknown vendor format: {vendor_format}")
-
-        if converted_count == 0:
-            raise RuntimeError(f"No files converted from {input_dir} ({vendor_format})")
+    except Exception:
+        if output_dir.exists():
+            shutil.rmtree(output_dir, ignore_errors=True)
+        raise
 
     if delete_original:
         _delete_vendor_originals(input_dir, vendor_format)

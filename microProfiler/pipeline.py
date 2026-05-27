@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Callable, Optional
 
-from microProfiler.config import PipelineConfig
+from microProfiler.config import ObjectProfilingConfig, PipelineConfig
 from microProfiler.io.dataset import ImageDataset
 from microProfiler.logging_utils import setup_logging
 
@@ -206,15 +206,18 @@ def _run_profile(
     """Run the profiling step if configured."""
     profiling = cfg.profiling
     if profiling is None:
-        return
+        return ds
 
     db_path = root_dir / db_name
     intensity_cols = ds.intensity_colnames
     n_workers = profiling.n_workers
+    obj_masks = [o.object_mask_name for o in profiling.object_profilings if o.object_mask_name]
+    if not obj_masks and profiling.object_mask_name:
+        obj_masks = [profiling.object_mask_name]
     log.debug(
-        "Profile: image_channels=%s, object_mask=%s, db=%s, workers=%d",
+        "Profile: image_channels=%s, object_masks=%s, db=%s, workers=%d",
         profiling.image_channels,
-        profiling.object_mask_name,
+        obj_masks,
         db_path,
         n_workers,
     )
@@ -227,70 +230,99 @@ def _run_profile(
         if profiling.image_thresholds:
             img_kwargs["thresholds"] = profiling.image_thresholds
         if progress_cb:
-            progress_cb("Profile Image", 0, 1, "Image profiling...")
+            progress_cb("Profile image", 0, 1, "Starting...")
         profile_images(ds, channels=channels, n_workers=n_workers, **img_kwargs)
         if progress_cb:
-            progress_cb("Profile Image", 1, 1, "Image profiling complete")
+            progress_cb("Profile image", 1, 1, "Done")
 
-    if profiling.object_mask_name:
+    # Build list of object profiling configs (new multi-block + legacy fallback)
+    obj_configs = list(profiling.object_profilings)
+    if not obj_configs and profiling.object_mask_name:
+        legacy = {
+            "object_mask_name": profiling.object_mask_name,
+            "parent_mask_name": profiling.parent_mask_name,
+            "output_table_name": profiling.output_table_name,
+            "object_intensity_channels": profiling.object_intensity_channels,
+            "object_radial_channels": profiling.object_radial_channels,
+            "object_radial_bins": profiling.object_radial_bins,
+            "object_granularity_channels": profiling.object_granularity_channels,
+            "object_granularity_radii": profiling.object_granularity_radii,
+            "object_granularity_subsample": profiling.object_granularity_subsample,
+            "object_glcm_channels": profiling.object_glcm_channels,
+            "object_glcm_distances": profiling.object_glcm_distances,
+            "object_glcm_levels": profiling.object_glcm_levels,
+            "object_glcm_angles": profiling.object_glcm_angles,
+            "correlation_pairs": profiling.correlation_pairs,
+        }
+        obj_configs = [ObjectProfilingConfig(**legacy)]
+
+    for obj_cfg in obj_configs:
+        mask_name = getattr(obj_cfg, "object_mask_name", None)
+        if not mask_name:
+            continue
         from microProfiler.profiling.object_profiler import profile_objects
 
-        mask_name = profiling.object_mask_name
-        ic = profiling.object_intensity_channels or intensity_cols
-        rc = profiling.object_radial_channels
-        gc = profiling.object_granularity_channels
-        glcm_c = profiling.object_glcm_channels
-        glcm_d = profiling.object_glcm_distances
-        corr = profiling.correlation_pairs
+        ic = getattr(obj_cfg, "object_intensity_channels", None) or intensity_cols
+        rc = getattr(obj_cfg, "object_radial_channels", None)
+        gc = getattr(obj_cfg, "object_granularity_channels", None)
+        glcm_c = getattr(obj_cfg, "object_glcm_channels", None)
+        glcm_d = getattr(obj_cfg, "object_glcm_distances", None)
+        corr = getattr(obj_cfg, "correlation_pairs", None)
         corr_tuples = None
         if corr:
             corr_tuples = [(tuple(p) if isinstance(p, list) else p) for p in corr]
 
         obj_kwargs = {}
-        if profiling.parent_mask_name:
-            obj_kwargs["parent_mask_name"] = profiling.parent_mask_name
-        if gc and profiling.object_granularity_scales:
+        parent_mask = getattr(obj_cfg, "parent_mask_name", None)
+        if parent_mask:
+            obj_kwargs["parent_mask_name"] = parent_mask
+        obj_gran_radii = getattr(obj_cfg, "object_granularity_radii", None)
+        if gc and obj_gran_radii:
             obj_kwargs["granularity_kwargs"] = {
-                "scales": [
-                    int(s.strip()) for s in
-                    profiling.object_granularity_scales.split(",") if s.strip()
+                "radii": [
+                    float(s.strip()) for s in
+                    obj_gran_radii.split(",") if s.strip()
                 ],
-                "subsample_size": profiling.object_granularity_subsample or 0.25,
-                "element_size": profiling.object_granularity_element_size or 10,
+                "subsample_size": getattr(obj_cfg, "object_granularity_subsample", None) or 1.0,
             }
         if glcm_c:
             obj_kwargs["glcm_kwargs"] = {"distances": glcm_d or [1, 2, 3]}
-            if profiling.object_glcm_levels:
-                obj_kwargs["glcm_kwargs"]["levels"] = profiling.object_glcm_levels
-            if profiling.object_glcm_angles:
+            glcm_levels = getattr(obj_cfg, "object_glcm_levels", None)
+            if glcm_levels:
+                obj_kwargs["glcm_kwargs"]["levels"] = glcm_levels
+            glcm_angles = getattr(obj_cfg, "object_glcm_angles", None)
+            if glcm_angles:
                 import math
                 obj_kwargs["glcm_kwargs"]["angles"] = [
                     math.radians(float(a.strip()))
-                    for a in profiling.object_glcm_angles.split(",") if a.strip()
+                    for a in glcm_angles.split(",") if a.strip()
                 ]
-        if rc and profiling.object_radial_bins != 5:
-            obj_kwargs["radial_kwargs"] = {"nbins": profiling.object_radial_bins}
+        obj_radial_bins = getattr(obj_cfg, "object_radial_bins", 5)
+        if rc and obj_radial_bins != 5:
+            obj_kwargs["radial_kwargs"] = {"nbins": obj_radial_bins}
 
         if progress_cb:
-            progress_cb("Profile Object", 0, 1, f"Object profiling on {mask_name}...")
+            progress_cb(f"Profile {mask_name}", 0, 1, "Starting...")
         profile_objects(
             ds,
             mask_name=mask_name,
             intensity_channels=ic,
             radial_channels=rc,
-            radial_n_bins=profiling.object_radial_bins,
+            radial_n_bins=obj_radial_bins,
             granularity_channels=gc,
             glcm_channels=glcm_c,
             glcm_distances=glcm_d,
             correlation_pairs=corr_tuples,
             db_path=db_path,
-            table_name=mask_name,
+            table_name=getattr(obj_cfg, "output_table_name", None) or mask_name,
             progress_cb=progress_cb,
             n_workers=n_workers,
             **obj_kwargs,
         )
         if progress_cb:
-            progress_cb("Profile Object", 1, 1, "Object profiling complete")
+            progress_cb(f"Profile {mask_name}", 1, 1, "Done")
+
+    return ds
 
 
 _STEP_FUNCTIONS = {
@@ -364,7 +396,7 @@ def run_step(
         return ds
 
     if ds is not None:
-        pass
+        log.info("Skipping dataset loading from disk — using pre-loaded dataset.")
     elif step_name == "convert":
         ds = fn(cfg, root_dir, progress_cb)
     else:

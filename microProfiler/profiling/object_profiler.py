@@ -101,13 +101,6 @@ def _intensity_fns(ch_name: str) -> list:
     ]
 
 
-def _rename_channel(fns: list, old_idx: int, ch_name: str) -> list:
-    for fn in fns:
-        new_name = fn.__name__.replace(f"_ch{old_idx}", f"_{ch_name}")
-        fn.__name__ = new_name
-        fn.__qualname__ = new_name
-    return fns
-
 
 def _relate_masks(
     child: np.ndarray,
@@ -249,7 +242,7 @@ def measure_objects(
     granularity_channels : list of str, optional
         Channels for granularity spectrum.
     granularity_kwargs : dict, optional
-        ``{"scales": ..., "subsample_size": ..., "element_size": ...}``.
+        ``{"radii": ..., "subsample_size": ...}``.
     glcm_channels : list of str, optional
         Channels for GLCM texture.
     glcm_kwargs : dict, optional
@@ -310,20 +303,17 @@ def measure_objects(
 
     rd_kw = dict(radial_kwargs or {})
     for idx in radial_idx:
-        fns = make_radial_distribution(channel=0, **rd_kw)
-        _rename_channel(fns, 0, channel_names[idx])
+        fns = make_radial_distribution(ch_name=channel_names[idx], **rd_kw)
         _add(idx, fns)
 
     gr_kw = dict(granularity_kwargs or {})
     for idx in granularity_idx:
-        fns = make_granularity(channel=0, **gr_kw)
-        _rename_channel(fns, 0, channel_names[idx])
+        fns = make_granularity(ch_name=channel_names[idx], **gr_kw)
         _add(idx, fns)
 
     gl_kw = dict(glcm_kwargs or {})
     for idx in glcm_idx:
-        fns = make_glcm(channel=0, **gl_kw)
-        _rename_channel(fns, 0, channel_names[idx])
+        fns = make_glcm(ch_name=channel_names[idx], **gl_kw)
         _add(idx, fns)
 
     # Step 5: Per-channel regionprops
@@ -395,8 +385,6 @@ def _profile_object_worker(args):
     """ProcessPoolExecutor worker — receives only serializable types."""
     (image_data, mask_data, channel_names, meta, mask_name,
      parent_mask_name, intensity_channels, correlation_pairs, measure_kwargs) = args
-
-    from microProfiler.profiling.object_profiler import measure_objects
 
     mask = mask_data.get(mask_name)
     if mask is None:
@@ -471,7 +459,7 @@ def profile_objects(
         Optional callback ``(step_name, current, total, message)``
         for GUI progress tracking.
     n_workers : int
-        Number of worker threads (1 = sequential).
+        Number of worker processes (1 = sequential).
     **extra_kwargs : dict, optional
         Extra keyword arguments forwarded to ``measure_objects()``.
         Use to override ``granularity_kwargs``, ``glcm_kwargs``,
@@ -499,9 +487,8 @@ def profile_objects(
     if granularity_channels is not None:
         measure_kwargs["granularity_channels"] = granularity_channels
         measure_kwargs["granularity_kwargs"] = {
-            "scales": list(range(5)),
-            "subsample_size": 0.25,
-            "element_size": 10,
+            "radii": [1, 3, 6, 8, 12],
+            "subsample_size": 1.0,
         }
 
     if glcm_channels is not None:
@@ -516,65 +503,83 @@ def profile_objects(
         else:
             measure_kwargs[k] = v
 
+    BATCH = 100
     results: List[pd.DataFrame] = []
     n_total = len(ds)
+    db = Database(db_path) if db_path else None
+    first_write = True
+    completed = 0
 
-    if n_workers == 1:
-        for idx in tqdm(range(n_total), desc=f"Profiling {mask_name}", unit="img"):
-            if progress_cb:
-                progress_cb(f"Profile {mask_name}", idx, n_total, f"Row {idx}")
-            result = _process_one_object(
-                ds, idx, mask_name, parent_mask_name,
-                intensity_channels, correlation_pairs, measure_kwargs,
-            )
-            if result is not None:
-                results.append(result)
-    else:
-        # Pre-read all image/mask data (serializable) for ProcessPoolExecutor
-        tasks = []
-        for idx in range(n_total):
-            row = ds.metadata.iloc[idx]
-            meta = {
-                k: v for k, v in row.to_dict().items()
-                if k not in ds.intensity_colnames and k not in ds.mask_colnames
-            }
-            image_data, mask_data = ds.get_imageset(idx)
-            tasks.append((
-                image_data, mask_data, ds.intensity_colnames, meta,
-                mask_name, parent_mask_name, intensity_channels,
-                correlation_pairs, measure_kwargs,
-            ))
+    def _flush_batch(batch, first):
+        if not batch:
+            return first
+        combined = pd.concat(batch, ignore_index=True)
+        if db is not None:
+            db.save_table(combined, table_name, if_exists="replace" if first else "append")
+            return False
+        results.extend(batch)
+        return first
 
-        completed = 0
-        with ProcessPoolExecutor(max_workers=n_workers) as executor:
-            futures = {
-                executor.submit(_profile_object_worker, t): idx
-                for idx, t in enumerate(tasks)
-            }
-            for future in tqdm(as_completed(futures), total=n_total, desc=f"Profiling {mask_name}", unit="img"):
-                idx = futures[future]
-                try:
-                    result = future.result()
-                    if result is not None:
-                        results.append(result)
+    try:
+        if n_workers == 1:
+            batch: List[pd.DataFrame] = []
+            for idx in tqdm(range(n_total), desc=f"Profiling {mask_name}", unit="img"):
+                if progress_cb:
+                    progress_cb(f"Profile {mask_name}", idx, n_total, "")
+                result = _process_one_object(
+                    ds, idx, mask_name, parent_mask_name,
+                    intensity_channels, correlation_pairs, measure_kwargs,
+                )
+                if result is not None:
+                    batch.append(result)
                     completed += 1
-                    if progress_cb:
-                        progress_cb(f"Profile {mask_name}", completed, n_total, f"Row {idx}")
-                except Exception:
-                    log.exception("Object profiling failed for row %d — skipping", idx)
-                    completed += 1
+                    if len(batch) >= BATCH:
+                        first_write = _flush_batch(batch, first_write)
+                        batch = []
+            first_write = _flush_batch(batch, first_write)
+        else:
+            # Process in chunks to avoid pre-loading all images into RAM
+            for chunk_start in range(0, n_total, BATCH):
+                chunk_end = min(chunk_start + BATCH, n_total)
+                tasks = []
+                for idx in range(chunk_start, chunk_end):
+                    row = ds.metadata.iloc[idx]
+                    meta = {
+                        k: v for k, v in row.to_dict().items()
+                        if k not in ds.intensity_colnames and k not in ds.mask_colnames
+                    }
+                    image_data, mask_data = ds.get_imageset(idx)
+                    tasks.append((
+                        image_data, mask_data, ds.intensity_colnames, meta,
+                        mask_name, parent_mask_name, intensity_channels,
+                        correlation_pairs, measure_kwargs,
+                    ))
+
+                with ProcessPoolExecutor(max_workers=n_workers) as executor:
+                    futures = {
+                        executor.submit(_profile_object_worker, t): idx
+                        for idx, t in enumerate(tasks)
+                    }
+                    chunk_batch: List[pd.DataFrame] = []
+                    for future in tqdm(as_completed(futures), total=len(tasks),
+                                       desc=f"Profiling {mask_name}", unit="img", leave=False):
+                        task_idx = futures[future]
+                        try:
+                            result = future.result()
+                            if result is not None:
+                                chunk_batch.append(result)
+                            completed += 1
+                            if progress_cb:
+                                progress_cb(f"Profile {mask_name}", completed, n_total, "")
+                        except Exception:
+                            log.exception("Object profiling failed for row %d — skipping", chunk_start + task_idx)
+                            completed += 1
+                    first_write = _flush_batch(chunk_batch, first_write)
+    finally:
+        if db is not None:
+            db.close()
 
     if not results:
         return None
 
-    combined = pd.concat(results, ignore_index=True)
-
-    if db_path:
-        db = Database(db_path)
-        try:
-            db.save_table(combined, table_name, if_exists="append")
-        finally:
-            db.close()
-        return None
-
-    return combined
+    return pd.concat(results, ignore_index=True)

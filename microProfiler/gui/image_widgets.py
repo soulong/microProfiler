@@ -1,7 +1,7 @@
 """Image display widgets for the GUI preview panels."""
 from __future__ import annotations
 
-from typing import List, Optional, Tuple
+from typing import Optional
 
 import numpy as np
 from PySide6.QtCore import Qt, Signal
@@ -60,18 +60,97 @@ class ImageViewer(QGraphicsView):
         self._zoom_level = 0
         self.setRenderHints(QPainter.SmoothPixmapTransform | QPainter.Antialiasing)
         self._reloading = False
+        self._base_array: Optional[np.ndarray] = None
+        self._overlay_mask: Optional[np.ndarray] = None
+        self._overlay_visible = False
+        self._overlay_alpha = 0.4
         self.setDragMode(QGraphicsView.ScrollHandDrag)
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         self.setFrameShape(QFrame.NoFrame)
         self.setMinimumSize(100, 100)
 
     def set_image(self, arr: np.ndarray | QImage) -> None:
+        self._base_array = arr if isinstance(arr, np.ndarray) else None
+        self._overlay_mask = None
+        self._overlay_visible = False
         self._reloading = True
         self._scene.clear()
         if isinstance(arr, QImage):
             pixmap = QPixmap.fromImage(arr)
         else:
             pixmap = _array_to_pixmap(arr)
+        self._pixmap_item = QGraphicsPixmapItem(pixmap)
+        self._scene.addItem(self._pixmap_item)
+        self.fitInView(self._pixmap_item, Qt.KeepAspectRatio)
+        self._fit_to_view = True
+        self._zoom_level = 0
+        self._reloading = False
+
+    def overlay_mask(self, mask: np.ndarray, alpha: float = 0.7) -> None:
+        """Overlay a colored label mask on top of the current base image.
+
+        Parameters
+        ----------
+        mask : np.ndarray
+            uint16 label mask (0 = background, non-zero = objects).
+        alpha : float
+            Opacity of the mask overlay (0 = invisible, 1 = opaque).
+        """
+        if self._base_array is None:
+            return
+        self._overlay_mask = mask
+        self._overlay_alpha = alpha
+        self._overlay_visible = True
+        self._apply_overlay()
+
+    def set_overlay_visible(self, visible: bool) -> None:
+        """Show or hide the mask overlay without losing the base image or mask data."""
+        self._overlay_visible = visible
+        if visible and self._overlay_mask is not None:
+            self._apply_overlay()
+        elif not visible and self._base_array is not None:
+            self._reloading = True
+            self._scene.clear()
+            pixmap = _array_to_pixmap(self._base_array)
+            self._pixmap_item = QGraphicsPixmapItem(pixmap)
+            self._scene.addItem(self._pixmap_item)
+            self.fitInView(self._pixmap_item, Qt.KeepAspectRatio)
+            self._fit_to_view = True
+            self._zoom_level = 0
+            self._reloading = False
+
+    def _apply_overlay(self) -> None:
+        """Recompute and display the composited base + mask overlay."""
+        if self._base_array is None or self._overlay_mask is None:
+            return
+        base = self._base_array.astype(np.float64)
+        vmin, vmax = np.percentile(base[base > 0] if (base > 0).any() else base, (0.1, 99.9))
+        if vmax > vmin:
+            base = (base - vmin) / (vmax - vmin)
+        base = base.clip(0, 1)
+
+        mask = self._overlay_mask
+        labels = np.unique(mask)
+        h, w = mask.shape
+        overlay = np.zeros((h, w, 4), dtype=np.float64)
+        for lbl in labels:
+            if lbl == 0:
+                continue
+            rnd = np.random.RandomState(int(lbl) * 7 + 13)
+            color = np.array([rnd.randint(60, 256) for _ in range(3)], dtype=np.float64) / 255.0
+            overlay[mask == lbl, :3] = color
+            overlay[mask == lbl, 3] = self._overlay_alpha
+
+        base_rgb = np.stack([base] * 3, axis=-1)
+        a = overlay[..., 3:4]
+        composited = overlay[..., :3] * a + base_rgb * (1 - a)
+        composited = (composited.clip(0, 1) * 255).astype(np.uint8)
+
+        qimg = QImage(composited.data, w, h, 3 * w, QImage.Format.Format_RGB888)
+        pixmap = QPixmap.fromImage(qimg)
+
+        self._reloading = True
+        self._scene.clear()
         self._pixmap_item = QGraphicsPixmapItem(pixmap)
         self._scene.addItem(self._pixmap_item)
         self.fitInView(self._pixmap_item, Qt.KeepAspectRatio)

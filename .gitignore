@@ -7,13 +7,13 @@ dist/
 build/
 .eggs/
 test_result/
-tests/
 *.db
 *.sqlite
 *.sqlite3
 logs/
 .DS_Store
 Thumbs.db
+nul
 
 # Non-package files
 .opencode/

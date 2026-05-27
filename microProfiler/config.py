@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 log = logging.getLogger(__name__)
 
@@ -117,20 +117,17 @@ class SegmentationConfig(BaseModel):
     cellprob_threshold: float = Field(0.0, ge=0.0)
 
 
-class ProfilingConfig(BaseModel):
-    """Image-level and object-level profiling configuration."""
+class ObjectProfilingConfig(BaseModel):
+    """Per-object profiling configuration."""
 
-    image_channels: Optional[List[str]] = Field(
-        None, description="Channels for image profiling",
-    )
-    image_thresholds: Optional[Dict[str, float]] = Field(
-        None, description="Per-channel thresholds for image-level object detection",
-    )
     object_mask_name: Optional[str] = Field(
         None, description="Mask for object profiling",
     )
     parent_mask_name: Optional[str] = Field(
         None, description="Parent mask for hierarchical object assignment",
+    )
+    output_table_name: Optional[str] = Field(
+        None, description="Output table name in results database (defaults to mask name)",
     )
     object_intensity_channels: Optional[List[str]] = Field(
         None, description="Channels for object intensity",
@@ -140,14 +137,11 @@ class ProfilingConfig(BaseModel):
     )
     object_radial_bins: int = Field(5, ge=1)
     object_granularity_channels: Optional[List[str]] = Field(None)
-    object_granularity_scales: Optional[str] = Field(
-        None, description="Comma-separated scale indices for granularity (e.g. '0,1,2,3,4')",
+    object_granularity_radii: Optional[str] = Field(
+        None, description="Comma-separated pixel radii for granularity",
     )
     object_granularity_subsample: Optional[float] = Field(
         None, ge=0.01, le=1.0, description="Granularity subsample fraction",
-    )
-    object_granularity_element_size: Optional[int] = Field(
-        None, ge=1, le=100, description="Granularity element size",
     )
     object_glcm_channels: Optional[List[str]] = Field(None)
     object_glcm_distances: Optional[List[int]] = Field(None)
@@ -155,16 +149,82 @@ class ProfilingConfig(BaseModel):
         None, ge=2, le=256, description="GLCM quantization levels",
     )
     object_glcm_angles: Optional[str] = Field(
-        None, description="Comma-separated GLCM angles in degrees (e.g. '0,90,180,270')",
+        None, description="Comma-separated GLCM angles in degrees",
     )
     correlation_pairs: Optional[List[List[str]]] = Field(
         None, description="Channel pairs for correlation",
     )
+
+
+class ProfilingConfig(BaseModel):
+    """Image-level and object-level profiling configuration."""
+
+    image_channels: Optional[List[str]] = Field(
+        None, description="Channels for image profiling",
+    )
+    image_thresholds: Optional[Dict[str, float]] = Field(
+        None, description="Per-channel thresholds for image-level object detection",
+    )
     n_workers: int = Field(
         default_factory=lambda: max(1, (os.cpu_count() or 1) // 2),
         ge=1, le=64,
-        description="Number of worker processes for parallel profiling (default: half of CPU cores)",
+        description="Number of worker processes for parallel profiling",
     )
+    object_profilings: List[ObjectProfilingConfig] = Field(
+        default_factory=list, description="Per-object profiling configurations",
+    )
+
+    # Legacy fields — migrated to object_profilings[0] by _migrate_object_profilings
+    object_mask_name: Optional[str] = Field(
+        None, description="[Legacy] Mask for object profiling",
+    )
+    parent_mask_name: Optional[str] = Field(
+        None, description="[Legacy] Parent mask",
+    )
+    object_intensity_channels: Optional[List[str]] = Field(
+        None, description="[Legacy] Channels for object intensity",
+    )
+    object_radial_channels: Optional[List[str]] = Field(
+        None, description="[Legacy] Channels for radial distribution",
+    )
+    object_radial_bins: int = Field(5, ge=1)
+    object_granularity_channels: Optional[List[str]] = Field(None)
+    object_granularity_radii: Optional[str] = Field(None)
+    object_granularity_subsample: Optional[float] = Field(None, ge=0.01, le=1.0)
+    object_glcm_channels: Optional[List[str]] = Field(None)
+    object_glcm_distances: Optional[List[int]] = Field(None)
+    object_glcm_levels: Optional[int] = Field(None, ge=2, le=256)
+    object_glcm_angles: Optional[str] = Field(None)
+    correlation_pairs: Optional[List[List[str]]] = Field(None)
+    output_table_name: Optional[str] = Field(
+        None, description="[Legacy] Output table name",
+    )
+
+    @model_validator(mode="after")
+    def _migrate_object_profilings(self):
+        """Migrate legacy flat object fields into object_profilings[0]."""
+        if self.object_profilings:
+            return self
+        if self.object_mask_name is None and self.object_intensity_channels is None:
+            return self
+        legacy = {
+            "object_mask_name": self.object_mask_name,
+            "parent_mask_name": self.parent_mask_name,
+            "output_table_name": self.output_table_name,
+            "object_intensity_channels": self.object_intensity_channels,
+            "object_radial_channels": self.object_radial_channels,
+            "object_radial_bins": self.object_radial_bins,
+            "object_granularity_channels": self.object_granularity_channels,
+            "object_granularity_radii": self.object_granularity_radii,
+            "object_granularity_subsample": self.object_granularity_subsample,
+            "object_glcm_channels": self.object_glcm_channels,
+            "object_glcm_distances": self.object_glcm_distances,
+            "object_glcm_levels": self.object_glcm_levels,
+            "object_glcm_angles": self.object_glcm_angles,
+            "correlation_pairs": self.correlation_pairs,
+        }
+        self.object_profilings = [ObjectProfilingConfig(**legacy)]
+        return self
 
 
 def load_config(
@@ -200,7 +260,15 @@ def load_config(
         log.debug("load_config: applying %d override keys", len(overrides))
         _deep_merge(config_dict, overrides)
 
-    return PipelineConfig(**config_dict)
+    try:
+        return PipelineConfig(**config_dict)
+    except ValidationError:
+        if not config_dict:
+            raise ValueError(
+                "No configuration provided. Specify a YAML config file, "
+                "or provide at least 'input_dir' and 'format' via overrides."
+            ) from None
+        raise
 
 
 def _deep_merge(base: Dict, overrides: Dict) -> None:

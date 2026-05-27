@@ -39,14 +39,12 @@ def _radial_all(
     intensity: np.ndarray,
     *,
     nbins: int,
-    channel: int,
 ) -> np.ndarray:
     """Fraction of total object intensity in each radial shell.
 
     Returns ``(nbins,)`` array: index 0 = outermost ring, last = centre.
     """
-    img = intensity[..., channel] if intensity.ndim == 3 else intensity
-    img = img.astype(float)
+    img = intensity.astype(float)
     mask = regionmask.astype(bool)
     if not mask.any():
         return np.zeros(nbins)
@@ -62,35 +60,31 @@ def _radial_all(
     if total == 0:
         return np.zeros(nbins)
     fracs = np.array([img[mask][bin_idx == b].sum() / total for b in range(nbins)])
-    return fracs[::-1]  # outermost first
+    return fracs
 
 
 def make_radial_distribution(
     nbins: int = 4,
-    channel: int = 0,
+    ch_name: str = "ch0",
 ) -> list:
     """Radial distribution callables.
 
-    Columns: ``radial_bin{i}_ch{channel}`` (i=0 → outermost).
-
-    Uses id(mask)-based caching: the full radial spectrum is computed
-    once per object, and each per-bin closure reads its value from the
-    cached array.
+    Columns: ``radial_bin{i}_{ch_name}`` (i=1 → outermost).
     """
-    _state = {"ptr": None, "result": None}
+    _state = {"key": None, "result": None}
 
     def _compute(mask, intensity):
-        ptr = mask.ctypes.data
-        if _state["ptr"] != ptr:
-            _state["ptr"] = ptr
-            _state["result"] = _radial_all(mask, intensity, nbins=nbins, channel=channel)
+        key = (id(mask), mask.shape, mask.sum())
+        if _state["key"] != key:
+            _state["key"] = key
+            _state["result"] = _radial_all(mask, intensity, nbins=nbins)
         return _state["result"]
 
     fns = []
     for b in range(nbins):
         def _fn(mask, intensity, _b=b):
             return float(_compute(mask, intensity)[_b])
-        fns.append(_named(_fn, f"radial_bin{b}_ch{channel}"))
+        fns.append(_named(_fn, f"radial_bin{b + 1}_{ch_name}"))
     return fns
 
 
@@ -102,19 +96,21 @@ def _granularity_all(
     regionmask: np.ndarray,
     intensity: np.ndarray,
     *,
-    scales: tuple,
-    channel: int,
+    radii: tuple,
     subsample_size: float,
-    element_size: int,
 ) -> np.ndarray:
-    """Granularity spectrum — fraction of texture removed at each scale."""
-    img = intensity[..., channel] if intensity.ndim == 3 else intensity
-    img = img.astype(float)
+    """Granularity spectrum — fraction of texture removed at each feature radius.
+
+    *radii* are user-facing pixel sizes (before subsampling).  The image is
+    resized once, then the effective disk radius for each entry is
+    ``round(radius * subsample_ratio)``.
+    """
+    img = intensity.astype(float)
     mask = regionmask.astype(bool)
     masked = img * mask
 
     h, w = masked.shape[:2]
-    if subsample_size < 1:
+    if subsample_size <= 1:
         nh = max(1, round(h * subsample_size))
         nw = max(1, round(w * subsample_size))
     elif max(h, w) > subsample_size:
@@ -127,59 +123,65 @@ def _granularity_all(
         masked = resize(masked, (nh, nw), anti_aliasing=True, order=3)
         mask = resize(mask.astype(float), (nh, nw), order=0) > 0.5
 
-    current = masked.copy()
-    prev_mean = current[mask].mean() if mask.any() else 0.0
-    result = np.zeros(len(scales))
-    if prev_mean == 0:
-        return result
+    subsample_ratio = nh / h if (nh, nw) != (h, w) else 1.0
 
-    for i, s in enumerate(scales):
-        radius = round(s * element_size / 10)
-        if radius == 0:
-            curr_mean = current[mask].mean() if mask.any() else 0.0
+    effective_radii = [max(1, round(r * subsample_ratio)) for r in radii]
+
+    current = masked.copy()
+    result = np.zeros(len(radii))
+
+    for i in range(len(radii)):
+        eff_r = effective_radii[i]
+        se = disk(eff_r)
+        closed = dilation(erosion(current, se), se)
+
+        if eff_r > 1:
+            inner = erosion(mask, disk(eff_r))
         else:
-            se = disk(radius)
-            current = dilation(erosion(current, se), se)
-            curr_mean = current[mask].mean() if mask.any() else 0.0
+            inner = mask
+
+        if not inner.any():
+            result[i] = 0.0
+            current = closed
+            continue
+
+        prev_mean = current[inner].mean()
+        curr_mean = closed[inner].mean()
         result[i] = (prev_mean - curr_mean) / prev_mean if prev_mean > 0 else 0.0
-        prev_mean = curr_mean
+        current = closed
 
     return result
 
 
 def make_granularity(
-    scales: Sequence[int] = tuple(range(1, 17)),
-    channel: int = 0,
-    subsample_size: float = 256,
-    element_size: int = 10,
+    radii: Sequence[float] = (1, 3, 6, 8, 12),
+    ch_name: str = "ch0",
+    subsample_size: float = 1.0,
 ) -> list:
     """Granularity callables.
 
-    Columns: ``granularity_scale{s}_ch{channel}``.
-
-    Uses id(mask)-based caching: the full granularity spectrum is
-    computed once per object.
+    Columns: ``granularity_scale{r}_{ch_name}`` where *r* is the
+    user-facing pixel radius (before subsampling).
     """
-    scales = tuple(scales)
-    log.debug("Granularity: scales=%s, element_size=%s, subsample=%s", scales, element_size, subsample_size)
+    radii = tuple(radii)
+    log.debug("Granularity: radii=%s, subsample=%s", radii, subsample_size)
 
-    _state = {"ptr": None, "result": None}
+    _state = {"key": None, "result": None}
 
     def _compute(mask, intensity):
-        ptr = mask.ctypes.data
-        if _state["ptr"] != ptr:
-            _state["ptr"] = ptr
+        key = (id(mask), mask.shape, mask.sum())
+        if _state["key"] != key:
+            _state["key"] = key
             _state["result"] = _granularity_all(
-                mask, intensity, scales=scales, channel=channel,
-                subsample_size=subsample_size, element_size=element_size,
+                mask, intensity, radii=radii, subsample_size=subsample_size,
             )
         return _state["result"]
 
     fns = []
-    for i, s in enumerate(scales):
+    for i, r in enumerate(radii):
         def _fn(mask, intensity, _i=i):
             return float(_compute(mask, intensity)[_i])
-        fns.append(_named(_fn, f"granularity_scale{s}_ch{channel}"))
+        fns.append(_named(_fn, f"granularity_scale{int(r)}_{ch_name}"))
     return fns
 
 
@@ -198,13 +200,13 @@ def _glcm_all(
     distances: tuple,
     angles: tuple,
     levels: int,
-    channel: int,
     props: tuple,
 ) -> np.ndarray:
     """GLCM features — flat array: [d0_p0, d0_p1, ..., dN_pM]."""
-    levels = min(levels, 256)  # uint8 quantization: max 256 levels
-    img = intensity[..., channel] if intensity.ndim == 3 else intensity
-    img = img.astype(float)
+    if levels > 256:
+        log.warning("GLCM levels=%d exceeds maximum of 256 — clamping to 256", levels)
+    levels = min(levels, 256)
+    img = intensity.astype(float)
     mask = regionmask.astype(bool)
     roi = img[mask]
     n_out = len(distances) * len(props)
@@ -215,22 +217,38 @@ def _glcm_all(
     if mx == mn:
         return np.zeros(n_out)
 
-    quantised = np.zeros_like(img, dtype=np.uint8)
+    bg_val = levels
+    dtype = np.uint16 if levels >= 256 else np.uint8
+    quantised = np.full_like(img, bg_val, dtype=dtype)
     quantised[mask] = np.clip(
         ((img[mask] - mn) / (mx - mn) * (levels - 1)).astype(int), 0, levels - 1,
     )
 
     results = []
     for d in distances:
-        glcm = graycomatrix(
+        glcm_full = graycomatrix(
             quantised, distances=[d], angles=list(angles),
-            levels=levels, symmetric=True, normed=True,
+            levels=levels + 1, symmetric=True, normed=False,
         )
+        glcm_masked = glcm_full[:levels, :levels, :, :].astype(float)
+        for di in range(glcm_masked.shape[2]):
+            for a in range(glcm_masked.shape[3]):
+                total = glcm_masked[:, :, di, a].sum()
+                if total > 0:
+                    glcm_masked[:, :, di, a] /= total
+
         for p in props:
             if p == "asm":
-                vals = graycoprops(glcm, "energy")[0] ** 2
+                vals = graycoprops(glcm_masked, "energy")[0] ** 2
+            elif p == "entropy":
+                entropies = []
+                for a in range(glcm_masked.shape[3]):
+                    p_mat = glcm_masked[:, :, 0, a]
+                    nonzero = p_mat[p_mat > 0]
+                    entropies.append(float(-np.sum(nonzero * np.log2(nonzero))))
+                vals = np.array(entropies)
             else:
-                vals = graycoprops(glcm, p)[0]
+                vals = graycoprops(glcm_masked, p)[0]
             results.append(float(vals.mean()))
     return np.array(results)
 
@@ -239,31 +257,27 @@ def make_glcm(
     distances: Sequence[int] = (1, 2, 4, 8),
     angles: Sequence[float] = (0, np.pi / 4, np.pi / 2, 3 * np.pi / 4),
     levels: int = 8,
-    channel: int = 0,
+    ch_name: str = "ch0",
     props: Sequence[str] = _GLCM_PROPS,
 ) -> list:
     """GLCM callables.
 
-    Columns: ``glcm_{prop}_d{distance}_ch{channel}``.
-
-    Uses id(mask)-based caching: the full GLCM for all distances × angles
-    is computed once per object, and each per-property-per-distance
-    closure reads its value from the cached array.
+    Columns: ``glcm_{prop}_d{distance}_{ch_name}``.
     """
     distances = tuple(distances)
     angles = tuple(angles)
     props = tuple(props)
     log.debug("GLCM: distances=%s, angles=%d, levels=%d, props=%s", distances, len(angles), levels, props)
 
-    _state = {"ptr": None, "result": None}
+    _state = {"key": None, "result": None}
 
     def _compute(mask, intensity):
-        ptr = mask.ctypes.data
-        if _state["ptr"] != ptr:
-            _state["ptr"] = ptr
+        key = (id(mask), mask.shape, mask.sum())
+        if _state["key"] != key:
+            _state["key"] = key
             _state["result"] = _glcm_all(
                 mask, intensity, distances=distances, angles=angles,
-                levels=levels, channel=channel, props=props,
+                levels=levels, props=props,
             )
         return _state["result"]
 
@@ -273,7 +287,7 @@ def make_glcm(
             idx = di * len(props) + pi
             def _fn(mask, intensity, _idx=idx):
                 return float(_compute(mask, intensity)[_idx])
-            fns.append(_named(_fn, f"glcm_{p}_d{d}_ch{channel}"))
+            fns.append(_named(_fn, f"glcm_{p}_d{d}_{ch_name}"))
     return fns
 
 

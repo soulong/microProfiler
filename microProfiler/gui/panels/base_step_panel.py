@@ -94,69 +94,12 @@ class BaseStepPanel(QGroupBox):
         elif isinstance(widget, QComboBox):
             widget.currentIndexChanged.connect(self.parameter_changed, Qt.UniqueConnection)
 
-    def _collect_widgets(self) -> List[QObject]:
-        """Return all parameter widgets. Override in subclasses."""
-        return []
-
     def save_to_settings(self, settings) -> Dict[str, Any]:
-        """Persist widget values to ``settings`` (a QSettingsPersistence instance).
-
-        Subclasses should override to provide step-specific params,
-        then call the inherited version.
-        """
-        params: Dict[str, Any] = {}
-        for w in self._collect_widgets():
-            if isinstance(w, QLineEdit):
-                params[w.objectName() or f"widget_{id(w)}"] = w.text()
-            elif isinstance(w, QSpinBox):
-                params[w.objectName() or f"widget_{id(w)}"] = w.value()
-            elif isinstance(w, QDoubleSpinBox):
-                params[w.objectName() or f"widget_{id(w)}"] = w.value()
-            elif isinstance(w, QCheckBox):
-                params[w.objectName() or f"widget_{id(w)}"] = w.isChecked()
-            elif isinstance(w, QComboBox):
-                params[w.objectName() or f"widget_{id(w)}"] = w.currentText()
-        settings.save_params(self.step_name, params)
-        return params
+        """Persist widget values to ``settings``. Override in subclasses."""
+        return {}
 
     def load_from_settings(self, settings) -> None:
-        """Restore widget values from ``settings`` (a QSettingsPersistence instance).
-
-        Subclasses should override to provide step-specific params,
-        then call the inherited version.
-        """
-        stored = settings.load_params(self.step_name)
-        if not stored:
-            return
-        for w in self._collect_widgets():
-            key = w.objectName() or ""
-            if not key or key not in stored:
-                continue
-            val = stored[key]
-            if isinstance(w, QLineEdit):
-                w.setText(val)
-            elif isinstance(w, QSpinBox):
-                try:
-                    w.setValue(int(val))
-                except (ValueError, TypeError):
-                    pass
-            elif isinstance(w, QDoubleSpinBox):
-                try:
-                    w.setValue(float(val))
-                except (ValueError, TypeError):
-                    pass
-            elif isinstance(w, QCheckBox):
-                w.setChecked(val in ("1", "True", "true"))
-            elif isinstance(w, QComboBox):
-                idx = w.findText(val)
-                if idx >= 0:
-                    w.setCurrentIndex(idx)
-
-    def save_to_state(self) -> None:
-        """Update state from widget values. Override in subclasses."""
-
-    def load_from_state(self) -> None:
-        """Update widget values from state. Override in subclasses."""
+        """Restore widget values from ``settings``. Override in subclasses."""
 
     def build_config_section(self) -> Optional[dict]:
         """Return a dict for PipelineConfig or None if disabled."""

@@ -4,8 +4,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QEvent, QObject
 from PySide6.QtWidgets import (
+    QApplication,
+    QAbstractSpinBox,
     QComboBox,
     QFileDialog,
     QFormLayout,
@@ -42,6 +44,25 @@ from microProfiler.io.dataset import ImageDataset
 from microProfiler.logging_utils import setup_logging
 
 
+class _WheelBlocker(QObject):
+    def eventFilter(self, watched, event):
+        if event.type() != QEvent.Type.Wheel:
+            return False
+        pos = event.globalPosition().toPoint()
+        w = QApplication.instance().widgetAt(pos)
+        for _ in range(4):
+            if w is None:
+                break
+            if isinstance(w, (QAbstractSpinBox, QComboBox)) and not w.hasFocus():
+                return True
+            w = w.parentWidget()
+        return False
+
+_wheel_blocker = _WheelBlocker()
+
+
+
+
 class MainWindow(QMainWindow):
     """Top-level application window with tab-based pipeline navigation."""
 
@@ -50,9 +71,6 @@ class MainWindow(QMainWindow):
         self._state = PipelineState()
         self._ctrl = PipelineController(self)
         self._output_manually_set = False
-        self._debounce_timer = QTimer()
-        self._debounce_timer.setSingleShot(True)
-        self._debounce_timer.timeout.connect(self._flush_settings)
 
         self.setWindowTitle("microProfiler")
         self.setMinimumSize(1200, 800)
@@ -262,6 +280,9 @@ class MainWindow(QMainWindow):
         status_bar.addPermanentWidget(self._load_config_btn)
         status_bar.addPermanentWidget(self._reset_all_btn)
 
+        # Block scroll-wheel on unfocused spinboxes/comboboxes globally
+        QApplication.instance().installEventFilter(_wheel_blocker)
+
     # ── Signal connections ────────────────────────────────────────────────
 
     def _connect_signals(self):
@@ -286,7 +307,6 @@ class MainWindow(QMainWindow):
 
         # Step panels
         for step in self._all_step_panels:
-            step.parameter_changed.connect(self._on_param_changed)
             if hasattr(step, "_pick_btn"):
                 step._pick_btn.clicked.connect(lambda checked, s=step: self._ctrl.pick_random(s))
             if hasattr(step, "_preview_btn"):
@@ -538,13 +558,6 @@ class MainWindow(QMainWindow):
         self._run_pre_btn.setEnabled(has_ds)
         self._run_seg_btn.setEnabled(has_ds)
         self._run_prof_btn.setEnabled(has_ds)
-
-    def _on_param_changed(self) -> None:
-        self._debounce_timer.start(500)
-
-    def _flush_settings(self) -> None:
-        """In-memory only — session.json is written exclusively when steps run."""
-        pass
 
     # ── Convert info display ──────────────────────────────────────────────
 

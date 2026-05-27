@@ -139,7 +139,7 @@ def profile_images(
     table_name : str
         Table name for DB output.
     n_workers : int
-        Number of worker threads (1 = sequential).
+        Number of worker processes (1 = sequential).
 
     Returns
     -------
@@ -151,52 +151,71 @@ def profile_images(
         "profile_images: channels=%s, thresholds=%s, db=%s, table=%s, count=%d, workers=%d",
         channels, thresholds, db_path, table_name, len(ds), n_workers,
     )
+    BATCH = 100
     results: List[pd.DataFrame] = []
     n_total = len(ds)
+    db = Database(db_path) if db_path else None
+    first_write = True
+    completed = 0
 
-    if n_workers == 1:
-        for idx in tqdm(range(n_total), desc="Image profiling", unit="img"):
-            if progress_cb:
-                progress_cb("Profile Image", idx, n_total, f"Row {idx}")
-            results.append(_process_one_image(ds, idx, channels, thresholds))
-    else:
-        # Pre-read all image data (serializable) for ProcessPoolExecutor
-        tasks = []
-        for idx in range(n_total):
-            image_data, _ = ds.get_imageset(idx)
-            row = ds.metadata.iloc[idx]
-            excluded = set(ds.intensity_colnames) | set(ds.mask_colnames)
-            meta = {k: v for k, v in row.to_dict().items() if k not in excluded}
-            tasks.append((image_data, ds.intensity_colnames, channels, thresholds, meta))
+    def _flush_batch(batch, first):
+        if not batch:
+            return first
+        combined = pd.concat(batch, ignore_index=True)
+        if db is not None:
+            db.save_table(combined, table_name, if_exists="replace" if first else "append")
+            return False
+        results.extend(batch)
+        return first
 
-        completed = 0
-        with ProcessPoolExecutor(max_workers=n_workers) as executor:
-            futures = {
-                executor.submit(_profile_image_worker, t): idx
-                for idx, t in enumerate(tasks)
-            }
-            for future in tqdm(as_completed(futures), total=n_total, desc="Image profiling", unit="img"):
-                idx = futures[future]
-                try:
-                    results.append(future.result())
-                    completed += 1
-                    if progress_cb:
-                        progress_cb("Profile Image", completed, n_total, f"Row {idx}")
-                except Exception:
-                    log.exception("Image profiling failed for row %d — skipping", idx)
-                    completed += 1
+    try:
+        if n_workers == 1:
+            batch: List[pd.DataFrame] = []
+            for idx in tqdm(range(n_total), desc="Image profiling", unit="img"):
+                if progress_cb:
+                    progress_cb("Profile image", idx, n_total, "")
+                result = _process_one_image(ds, idx, channels, thresholds)
+                batch.append(result)
+                completed += 1
+                if len(batch) >= BATCH:
+                    first_write = _flush_batch(batch, first_write)
+                    batch = []
+            first_write = _flush_batch(batch, first_write)
+        else:
+            # Process in chunks to avoid pre-loading all images into RAM
+            for chunk_start in range(0, n_total, BATCH):
+                chunk_end = min(chunk_start + BATCH, n_total)
+                tasks = []
+                for idx in range(chunk_start, chunk_end):
+                    image_data, _ = ds.get_imageset(idx)
+                    row = ds.metadata.iloc[idx]
+                    excluded = set(ds.intensity_colnames) | set(ds.mask_colnames)
+                    meta = {k: v for k, v in row.to_dict().items() if k not in excluded}
+                    tasks.append((image_data, ds.intensity_colnames, channels, thresholds, meta))
+
+                with ProcessPoolExecutor(max_workers=n_workers) as executor:
+                    futures = {
+                        executor.submit(_profile_image_worker, t): idx
+                        for idx, t in enumerate(tasks)
+                    }
+                    chunk_batch: List[pd.DataFrame] = []
+                    for future in tqdm(as_completed(futures), total=len(tasks), desc="Image profiling", unit="img", leave=False):
+                        task_idx = futures[future]
+                        try:
+                            result = future.result()
+                            chunk_batch.append(result)
+                            completed += 1
+                            if progress_cb:
+                                progress_cb("Profile image", completed, n_total, "")
+                        except Exception:
+                            log.exception("Image profiling failed for row %d — skipping", chunk_start + task_idx)
+                            completed += 1
+                    first_write = _flush_batch(chunk_batch, first_write)
+    finally:
+        if db is not None:
+            db.close()
 
     if not results:
         return None
 
-    combined = pd.concat(results, ignore_index=True)
-
-    if db_path:
-        db = Database(db_path)
-        try:
-            db.save_table(combined, table_name, if_exists="append")
-        finally:
-            db.close()
-        return None
-
-    return combined
+    return pd.concat(results, ignore_index=True)

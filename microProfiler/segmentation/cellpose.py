@@ -280,6 +280,9 @@ def segment_dataset(
     device = _get_device()
     normalize = normalize or {"percentile": [0.1, 99.9]}
 
+    if progress_cb:
+        progress_cb("Segment", 0, 1, "Loading Cellpose model...")
+    log.info("Loading Cellpose model '%s'...", model_name)
     model = models.CellposeModel(device=device, pretrained_model=model_name)
     diameter_val = None if diameter is None or diameter <= 0 else int(diameter * resize_factor)
 
@@ -344,6 +347,8 @@ def segment_dataset(
         if idx % 200 == 0:
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
+            elif torch.backends.mps.is_available():
+                torch.mps.empty_cache()
             gc.collect()
 
     log.info(

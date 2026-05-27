@@ -40,9 +40,6 @@ class ConvertStepPanel(BaseStepPanel):
         for w in (self._output_name, self._resize_factor, self._delete_orig):
             self._wire_param_signal(w)
 
-    def _widgets(self):
-        return [self._output_name, self._resize_factor, self._delete_orig]
-
     def save_to_settings(self, settings) -> dict:
         params = {
             "output_name": self._output_name.text(),

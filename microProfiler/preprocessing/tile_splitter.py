@@ -131,8 +131,15 @@ def tile_dataset(
                 continue
             img = read_image(src)
             tiles = tile_single(img, tile_w, tile_h)
+            written_count = 0
+            m = UNIFIED_IMAGE_PATTERN.match(src.name)
+            if m is None:
+                log.warning(
+                    "Tile splitter: skipping image '%s' — filename does not match "
+                    "unified image pattern. No tiles can be produced.",
+                    src.name,
+                )
             for tile_idx, tile in tiles:
-                m = UNIFIED_IMAGE_PATTERN.match(src.name)
                 if m is not None:
                     out_name = (
                         f"{m.group('well')}_f{m.group('field')}"
@@ -140,7 +147,8 @@ def tile_dataset(
                         f"_ch{m.group('channel')}_tile{tile_idx}.tiff"
                     )
                     write_image(swap.temp_dir / out_name, tile)
-            if inplace or effective_delete:
+                    written_count += 1
+            if (inplace or effective_delete) and written_count > 0:
                 swap.mark_original(src)
 
     if progress_cb:

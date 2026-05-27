@@ -118,6 +118,11 @@ def z_project_dataset(
             if progress_cb:
                 progress_cb("Z-projection", gi, len(all_groups), f"Group {group_key}")
             if len(group_df) <= 1:
+                log.warning(
+                    "Skipping Z-projection for group %s: only %d slice(s). "
+                    "A minimum of 2 Z-slices is required for projection.",
+                    group_key, len(group_df),
+                )
                 continue  # no Z-stack to project
 
             for ch in ds.intensity_colnames:

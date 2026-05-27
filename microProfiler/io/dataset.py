@@ -46,9 +46,11 @@ def _detect_intensity_suffix(directory: Path) -> str:
     ValueError
         If multiple different image extensions are present.
     """
-    counts: Dict[str, int] = {}
-    for ext in KNOWN_IMAGE_EXTS:
-        counts[ext] = len(list(directory.rglob(f"*{ext}")))
+    suffix_set = set(KNOWN_IMAGE_EXTS)
+    counts: Dict[str, int] = {ext: 0 for ext in KNOWN_IMAGE_EXTS}
+    for p in directory.rglob("*"):
+        if p.is_file() and p.suffix in suffix_set:
+            counts[p.suffix] += 1
     present = {k: v for k, v in counts.items() if v > 0}
     if not present:
         raise FileNotFoundError(
@@ -241,8 +243,8 @@ class ImageDataset:
                 f"No files found in {search_dir}"
             )
 
-        image_paths = [p for p in all_files if re.search(self._image_pattern, p.name)]
-        mask_paths = [p for p in all_files if re.search(self._mask_pattern, p.name)]
+        image_paths = [p for p in all_files if re.match(self._image_pattern, p.name)]
+        mask_paths = [p for p in all_files if re.match(self._mask_pattern, p.name)]
         log.debug("Found %d intensity images, %d mask images", len(image_paths), len(mask_paths))
 
         if not image_paths:
@@ -293,21 +295,24 @@ class ImageDataset:
             if pivoted.index.names == mpivoted.index.names:
                 mpivoted.columns = [f"mask_{c}" for c in mpivoted.columns]
                 pivoted = pivoted.join(mpivoted, how="left")
+                self._mask_colnames = [f"mask_{n}" for n in mask_names]
             else:
-                log.info("intensity_df index: %s", pivoted.index.names)
-                log.info("mask_combined index: %s", mcombined.index.names)
-
-            self._mask_colnames = [f"mask_{n}" for n in mask_names]
+                log.warning(
+                    "Mask join skipped: intensity and mask DataFrames have mismatched "
+                    "index names. Intensity index: %s, mask index: %s. "
+                    "Masks will NOT be joined into the dataset.",
+                    pivoted.index.names, mpivoted.index.names,
+                )
 
         self._metadata = pivoted.reset_index()
         log.debug("Built metadata: %d rows, channels=%s, masks=%s", len(self._metadata), self._intensity_colnames, self._mask_colnames)
 
         # Tile column: convert to int if present, drop if all NaN (pre-tiling)
         if "tile" in self._metadata.columns:
-            if self._metadata["tile"].notna().any():
-                self._metadata["tile"] = (
-                    self._metadata["tile"].str.replace("_tile", "").astype(int)
-                )
+            if self._metadata["tile"].notna().all():
+                self._metadata["tile"] = pd.to_numeric(
+                    self._metadata["tile"].str.replace("_tile", ""), errors="coerce"
+                ).astype(int)
             else:
                 self._metadata.drop(columns=["tile"], inplace=True)
 
