@@ -93,15 +93,14 @@ from microProfiler.preprocessing.z_projection import z_project_dataset
 from microProfiler.preprocessing.tile_splitter import tile_dataset
 from microProfiler.segmentation.cellpose import segment_dataset
 from microProfiler.profiling.image_profiler import profile_images
-from microProfiler.profiling.object_profiler import profile_objects
+from microProfiler.profiling.object_profiler import profile_objects, measure_objects
 
 root = Path(r"/path/to/Measurement 1")
 
 # 1. Convert to unified naming (optional resize during conversion)
-#    Returns an ImageDataset pointing to "image/" by default
 ds = convert_measurement(root, vendor_format="operetta", resize_factor=0.5)
 
-# 2. Preprocess (in-place by default — files updated in the images/ directory)
+# 2. Preprocess (in-place by default)
 ds = resize_dataset(ds, scale_factor=0.5, root_dir=root)
 ds = apply_basic(ds, mode="fit-transform", root_dir=root)
 ds = z_project_dataset(ds, root_dir=root, method="max")
@@ -110,11 +109,32 @@ ds = tile_dataset(ds, root_dir=root, tile_w=540, tile_h=540)
 # 3. Segment
 ds = segment_dataset(ds, object_name="cell", chan1=["ch1"])
 
-# 4. Profile
+# 4. Profile — image-level + object-level with extras
 profile_images(ds, db_path=root / "results.db", table_name="image")
-profile_objects(ds, mask_name="cell",
-                intensity_channels=["ch1", "ch2"],
-                db_path=root / "results.db")
+profile_objects(
+    ds,
+    mask_name="cell",
+    intensity_channels=["ch1", "ch2"],
+    radial_channels=["ch1"],
+    radial_n_bins=5,
+    granularity_channels=["ch1"],
+    glcm_channels=["ch1"],
+    glcm_distances=[1, 3],
+    correlation_pairs=[("ch1", "ch2")],
+    # override granularity defaults via extra_kwargs
+    granularity_kwargs={"radii": [1, 3, 6, 8, 12], "subsample_size": 1.0},
+    db_path=root / "results.db",
+)
+
+# Or measure a single image/mask pair directly
+row = ds.metadata.iloc[0]
+img, masks = ds.get_imageset(0)
+df = measure_objects(
+    masks["cell"], img,
+    channel_names=ds.intensity_colnames,
+    intensity_channels=ds.intensity_colnames,
+    granularity_channels=ds.intensity_colnames,
+)
 ```
 
 ## Supported Vendor Formats
