@@ -111,8 +111,22 @@ class PipelineController(QObject):
         return worker
 
     def _cancel_current_worker(self) -> None:
+        # Cancel pipeline worker
         if hasattr(self._w, "_worker") and self._w._worker is not None:
+            try:
+                self._w._worker.finished.disconnect()
+            except (RuntimeError, TypeError):
+                pass
             self._w._worker.cancel()
+
+        # Cancel preview worker
+        if hasattr(self._w, "_preview_worker") and self._w._preview_worker is not None:
+            self._w._preview_worker.cancel()
+
+        # Reset UI immediately
+        self._w._preview_running = False
+        self._w._set_running(False)
+        self._w._global_progress.reset()
 
     def _save_session_params(self, sf: SessionFile) -> None:
         """Save current step panel parameters to session.json."""
@@ -551,6 +565,7 @@ class PipelineController(QObject):
         self._preview_block_index = block_index
         self._preview_pending_step = self._w._segment_panel
         self._w._preview_running = True
+        self._w._global_progress.show_status("Segmenting preview...", 0)
         logging.getLogger("microProfiler").info(
             f"Segment preview block {block_index} row {idx}"
         )
@@ -575,6 +590,7 @@ class PipelineController(QObject):
 
     def on_preview_ready(self, result) -> None:
         self._w._preview_running = False
+        self._w._global_progress.reset()
         step = self._preview_pending_step
         if step is None:
             return
@@ -607,6 +623,7 @@ class PipelineController(QObject):
 
     def on_preview_error(self, message: str) -> None:
         self._w._preview_running = False
+        self._w._global_progress.show_error(f"Preview failed: {message}")
         step_name = (
             self._preview_pending_step.step_name
             if self._preview_pending_step else "unknown"

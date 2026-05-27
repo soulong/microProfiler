@@ -1,4 +1,8 @@
-# microProfiler ![Version](https://img.shields.io/badge/version-0.9.4-blue)
+# microProfiler
+
+[![PyPI version](https://img.shields.io/pypi/v/microProfiler)](https://pypi.org/project/microProfiler/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![Python](https://img.shields.io/pypi/pyversions/microProfiler)
 
 Microscopy image preprocessing, segmentation, and profiling pipeline for multi-well plate data.
 
@@ -6,32 +10,61 @@ Converts vendor-specific formats (Operetta, MICA) into a unified file structure,
 
 ## Requirements
 
-- **Python**: >= 3.10
-- **Conda** (recommended) or `pip`
+- **Python** >= 3.10
+- **OS**: Windows 10/11 (64-bit) recommended; CLI works cross-platform
+- **GPU** (optional): NVIDIA GPU with CUDA 12+ for faster segmentation
 
-### Quick setup (conda)
+## Installation
+
+### Quick Install (CPU)
+
+Works out of the box — no GPU required:
 
 ```bash
-# Create environment from curated file
-conda env create -f micro.yml
-conda activate micro
-
-# Install microProfiler
-pip install -e .
-
-# With dev extras (testing, linting)
-pip install -e ".[dev]"
+pip install microProfiler
 ```
 
-### Manual setup (conda or pip)
+### GPU-Accelerated Install (Recommended)
+
+For significantly faster Cellpose segmentation, install GPU-enabled PyTorch **before** installing microProfiler.
+
+**Step 1 — Install PyTorch with CUDA**
+
+Go to [pytorch.org/get-started](https://pytorch.org/get-started/locally/) and select your CUDA version. Example for CUDA 12.6:
 
 ```bash
-# Conda
-conda create -n micro python=3.10
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+```
+
+**Step 2 — Install JAX with CUDA** (used by BaSiC shading correction)
+
+```bash
+pip install jax[cuda12]
+```
+
+> See [jax.readthedocs.io](https://jax.readthedocs.io/en/latest/installation.html) for other CUDA versions.
+
+**Step 3 — Install microProfiler**
+
+```bash
+pip install microProfiler
+```
+
+This installs cellpose and all remaining dependencies automatically.
+
+### Conda Install
+
+```bash
+conda env create -f micro.yml
 conda activate micro
-conda install -c conda-forge cellpose numpy pandas scipy scikit-image tifffile torch jax pyyaml tqdm
-pip install natsort "pydantic>=2.0"
-pip install -e .
+```
+
+### Development Install
+
+```bash
+git clone https://github.com/soulong/microProfiler.git
+cd microProfiler
+pip install -e ".[dev]"
 ```
 
 ## Pipeline Order
@@ -173,7 +206,6 @@ microProfiler includes a PySide6 desktop GUI that wraps the full pipeline with s
 ### Running the GUI
 
 ```bash
-conda activate micro
 microprofiler
 ```
 

@@ -59,6 +59,10 @@ class PipelineWorker(QObject):
     def cancel(self) -> None:
         """Request cancellation of the running pipeline or step."""
         self._cancelled = True
+        if self._thread.isRunning():
+            self._thread.quit()
+            if not self._thread.wait(3000):
+                self._thread.terminate()
 
     def _execute(self) -> None:
         try:

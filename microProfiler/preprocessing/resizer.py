@@ -101,7 +101,7 @@ def resize_dataset(
     with TempSwap(target_dir, "resize") as swap:
         for i, src in enumerate(tqdm(all_paths, desc="Resizing", unit="img")):
             if progress_cb:
-                progress_cb("Resize", i, len(all_paths), f"Image {src.name}")
+                progress_cb("Resize", i, len(all_paths), "Resizing...")
             if not src.exists():
                 continue
             img = read_image(src)

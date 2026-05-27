@@ -617,6 +617,28 @@ class MainWindow(QMainWindow):
         settings = DictSettings(params)
         for step in self._all_step_panels:
             step.load_from_settings(settings)
+
+        # Populate mask dropdowns from segmentation settings + dataset,
+        # then re-apply saved mask names (load_from_settings ran before
+        # dropdowns had items, so findText would have returned -1).
+        self._ctrl._sync_seg_masks_to_profiling()
+        profile_params = params.get("profile", {})
+        if hasattr(self._profile_panel, "_blocks"):
+            for i, block in enumerate(self._profile_panel._blocks):
+                name = profile_params.get(f"block_{i}_object_mask_name")
+                if name:
+                    idx = block._object_mask.findText(str(name))
+                    if idx >= 0:
+                        block._object_mask.setCurrentIndex(idx)
+                    else:
+                        block._object_mask.setCurrentText(str(name))
+                parent = profile_params.get(f"block_{i}_parent_mask_name")
+                if parent:
+                    idx = block._parent_mask.findText(str(parent))
+                    if idx >= 0:
+                        block._parent_mask.setCurrentIndex(idx)
+                    else:
+                        block._parent_mask.setCurrentText(str(parent))
         logging.getLogger("microProfiler").info(f"Config loaded from {path}")
 
     def _reset_all(self) -> None:

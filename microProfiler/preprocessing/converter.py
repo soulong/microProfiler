@@ -158,7 +158,7 @@ def _find_mica_root(path: Path, _max_depth: int = 10) -> Path:
         if current.is_dir():
             subdirs = [
                 x.name for x in current.iterdir()
-                if x.is_dir() and x.name != "Metadata"
+                if x.is_dir() and x.name.lower() != "metadata"
             ]
             row_dirs = [s for s in subdirs if len(s) == 1 and s.isalpha()]
             if row_dirs:
@@ -309,13 +309,13 @@ def convert_measurement(
 
                 row_dirs = sorted(
                     d for d in root.iterdir()
-                    if d.is_dir() and len(d.name) == 1 and d.name.isalpha() and d.name != "Metadata"
+                    if d.is_dir() and len(d.name) == 1 and d.name.isalpha() and d.name.lower() != "metadata"
                 )
                 for row_dir in row_dirs:
                     row_letter = row_dir.name
                     col_dirs = sorted(
                         d for d in row_dir.iterdir()
-                        if d.is_dir() and d.name not in ("Metadata", "Images")
+                        if d.is_dir() and d.name.lower() not in ("metadata", "images")
                     )
                     for col_dir in col_dirs:
                         col_num = col_dir.name
@@ -337,8 +337,6 @@ def convert_measurement(
                 raise RuntimeError(f"No files converted from {input_dir} ({vendor_format})")
 
     except Exception:
-        if output_dir.exists():
-            shutil.rmtree(output_dir, ignore_errors=True)
         raise
 
     if delete_original:
@@ -361,6 +359,6 @@ def _delete_vendor_originals(input_dir: Path, vendor_format: str) -> None:
     elif vendor_format == "mica":
         root = _find_mica_root(input_dir)
         for d in root.iterdir():
-            if d.is_dir() and len(d.name) == 1 and d.name.isalpha() and d.name != "Metadata":
+            if d.is_dir() and len(d.name) == 1 and d.name.isalpha() and d.name.lower() != "metadata":
                 shutil.rmtree(d)
                 log.info("Deleted vendor row directory: %s", d)

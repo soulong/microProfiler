@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "microProfiler"
-version = "0.9.4"
+version = "0.9.5"
 description = "Microscopy image preprocessing, segmentation, and profiling pipeline"
 readme = "README.md"
 license = {text = "MIT"}
@@ -57,7 +57,7 @@ microprofiler = "microProfiler.__main__:main"
 where = ["."]
 
 [tool.setuptools.package-data]
-microProfiler = ["py.typed"]
+microProfiler = ["gui/*.qss", "gui/*.png"]
 
 [tool.ruff]
 line-length = 100

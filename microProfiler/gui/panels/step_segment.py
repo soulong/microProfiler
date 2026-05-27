@@ -101,9 +101,9 @@ class SegmentBlockWidget(QWidget):
         row2.addStretch()
         layout.addLayout(row2)
 
-        # Row 3: Chan1 + Merge1 + Chan2 + Merge2
+        # Row 3: Chan1 + Merge1
         row3 = QHBoxLayout()
-        self._chan_row = row3
+        self._chan1_row = row3
         row3.addWidget(QLabel("Chan1:"))
         self._chan1_checkboxes: List[QCheckBox] = []
         self._chan1_placeholder: Optional[QLabel] = None
@@ -121,26 +121,32 @@ class SegmentBlockWidget(QWidget):
         self._merge1 = QComboBox()
         self._merge1.addItems(["mean", "max", "min"])
         row3.addWidget(self._merge1)
-        row3.addWidget(QLabel("Chan2:"))
+        row3.addStretch()
+        layout.addLayout(row3)
+
+        # Row 4: Chan2 + Merge2
+        row4 = QHBoxLayout()
+        self._chan2_row = row4
+        row4.addWidget(QLabel("Chan2:"))
         self._chan2_checkboxes: List[QCheckBox] = []
         self._chan2_placeholder: Optional[QLabel] = None
         if self._channels:
             for ch in self._channels:
                 cb = QCheckBox(ch)
                 self._chan2_checkboxes.append(cb)
-                row3.addWidget(cb)
+                row4.addWidget(cb)
         else:
             self._chan2_placeholder = QLabel("Load a dataset to configure")
             self._chan2_placeholder.setProperty("class", "placeholder")
-            row3.addWidget(self._chan2_placeholder)
-        row3.addWidget(QLabel("Merge2:"))
+            row4.addWidget(self._chan2_placeholder)
+        row4.addWidget(QLabel("Merge2:"))
         self._merge2 = QComboBox()
         self._merge2.addItems(["mean", "max", "min"])
-        row3.addWidget(self._merge2)
-        row3.addStretch()
-        layout.addLayout(row3)
+        row4.addWidget(self._merge2)
+        row4.addStretch()
+        layout.addLayout(row4)
 
-        # Row 4: Right-aligned Pick Random and Preview Segment
+        # Row 5: Right-aligned Pick Random and Preview Segment
         row4 = QHBoxLayout()
         row4.addStretch()
         self._pick_btn = QPushButton("Pick Random")
@@ -156,6 +162,9 @@ class SegmentBlockWidget(QWidget):
         self._mask_toggle_btn.setEnabled(False)
         self._mask_toggle_btn.clicked.connect(self._on_mask_toggle)
         row4.addWidget(self._mask_toggle_btn)
+        self._mask_toggle_btn.setMinimumWidth(
+            self.fontMetrics().horizontalAdvance(self._pick_btn.text()) + 32
+        )
         layout.addLayout(row4)
 
         # Preview row — centered C1/C2 images, tightly packed
@@ -213,54 +222,44 @@ class SegmentBlockWidget(QWidget):
         self._chan1_checkboxes.clear()
         self._chan2_checkboxes.clear()
 
-        # Remove placeholder labels if present
-        for attr in ("_chan1_placeholder", "_chan2_placeholder"):
-            placeholder = getattr(self, attr, None)
+        # Helper to rebuild one channel row
+        def _rebuild_row(row, placeholder_attr, checkbox_list, checked_default):
+            placeholder = getattr(self, placeholder_attr, None)
             if placeholder is not None:
-                for i in range(self._chan_row.count() - 1, -1, -1):
-                    item = self._chan_row.itemAt(i)
+                for i in range(row.count() - 1, -1, -1):
+                    item = row.itemAt(i)
                     if item and item.widget() is placeholder:
-                        self._chan_row.removeItem(item)
+                        row.removeItem(item)
                         placeholder.deleteLater()
-                        setattr(self, attr, None)
+                        setattr(self, placeholder_attr, None)
                         break
 
-        # Remove all QCheckBox widgets from the channel row (iterate backwards)
-        for i in range(self._chan_row.count() - 1, -1, -1):
-            item = self._chan_row.itemAt(i)
-            if item and item.widget() and isinstance(item.widget(), QCheckBox):
-                w = item.widget()
-                self._chan_row.removeItem(item)
-                w.deleteLater()
+            # Remove all QCheckBox widgets from the row (iterate backwards)
+            for i in range(row.count() - 1, -1, -1):
+                item = row.itemAt(i)
+                if item and item.widget() and isinstance(item.widget(), QCheckBox):
+                    w = item.widget()
+                    row.removeItem(item)
+                    w.deleteLater()
 
-        # Find insertion points: Chan1 checkboxes go right after the "Chan1:" label,
-        # Chan2 checkboxes go right after the "Chan2:" label
-        insert_chan1 = -1
-        insert_chan2 = -1
-        for i in range(self._chan_row.count()):
-            w = self._chan_row.itemAt(i).widget()
-            if isinstance(w, QLabel):
-                if w.text() == "Chan1:":
-                    insert_chan1 = i + 1
-                elif w.text() == "Chan2:":
-                    insert_chan2 = i + 1
+            # Find insertion point: right after the label
+            insert_at = -1
+            for i in range(row.count()):
+                w = row.itemAt(i).widget()
+                if isinstance(w, QLabel) and w.text().startswith("Chan"):
+                    insert_at = i + 1
+                    break
 
-        # Insert Chan1 checkboxes
-        for ch in channels:
-            cb = QCheckBox(ch)
-            cb.setChecked(True)
-            self._chan_row.insertWidget(insert_chan1, cb)
-            self._chan1_checkboxes.append(cb)
-            insert_chan1 += 1
-            if insert_chan2 >= insert_chan1:
-                insert_chan2 += 1
+            # Insert checkboxes
+            for ch in channels:
+                cb = QCheckBox(ch)
+                cb.setChecked(checked_default)
+                row.insertWidget(insert_at, cb)
+                checkbox_list.append(cb)
+                insert_at += 1
 
-        # Insert Chan2 checkboxes
-        for ch in channels:
-            cb = QCheckBox(ch)
-            self._chan_row.insertWidget(insert_chan2, cb)
-            self._chan2_checkboxes.append(cb)
-            insert_chan2 += 1
+        _rebuild_row(self._chan1_row, "_chan1_placeholder", self._chan1_checkboxes, True)
+        _rebuild_row(self._chan2_row, "_chan2_placeholder", self._chan2_checkboxes, False)
 
     def build_config_section(self) -> dict:
         chan1 = self.get_chan1()
@@ -343,6 +342,18 @@ class SegmentStepPanel(BaseStepPanel):
     pick_requested = Signal(int)
     preview_requested = Signal(int)
 
+    @staticmethod
+    def _compact_block(block: SegmentBlockWidget) -> None:
+        from PySide6.QtWidgets import QAbstractSpinBox, QComboBox, QSpinBox, QDoubleSpinBox
+        for child in block.findChildren(QSpinBox):
+            child.setMaximumWidth(200)
+            child.setButtonSymbols(QAbstractSpinBox.NoButtons)
+        for child in block.findChildren(QDoubleSpinBox):
+            child.setMaximumWidth(200)
+            child.setButtonSymbols(QAbstractSpinBox.NoButtons)
+        for child in block.findChildren(QComboBox):
+            child.setMaximumWidth(200)
+
     def __init__(self, state, parent=None):
         super().__init__(state, parent)
         self.setTitle("Segmentation")
@@ -392,6 +403,7 @@ class SegmentStepPanel(BaseStepPanel):
         block._pick_btn.clicked.connect(lambda: self.pick_requested.emit(block.block_index))
         block._preview_btn.clicked.connect(lambda: self.preview_requested.emit(block.block_index))
         self._wire_block_signals(block)
+        self._compact_block(block)
         # Move add button to bottom: remove it, add spacing+block, re-add add button
         self._blocks_layout.removeItem(self._add_btn_layout)
         if self._blocks:
@@ -564,6 +576,7 @@ class SegmentStepPanel(BaseStepPanel):
                         cb.setChecked(cb.text() in chan2_set)
                 except (_json.JSONDecodeError, TypeError):
                     pass
+            self._compact_block(block)
             self._blocks.append(block)
             self._blocks_layout.addWidget(block)
 
@@ -655,6 +668,7 @@ class SegmentStepPanel(BaseStepPanel):
                 for cb in block._chan2_checkboxes:
                     cb.setChecked(cb.text() in chan2_set)
 
+            self._compact_block(block)
             self._blocks.append(block)
             self._blocks_layout.addWidget(block)
 

@@ -15,7 +15,7 @@ def main() -> None:
     app.setStyle("Fusion")
     app.setApplicationName("microProfiler")
     app.setOrganizationName("microProfiler")
-    app.setApplicationVersion("0.9.2")
+
 
     # Dark palette for title bar and system dialogs
     palette = QPalette()

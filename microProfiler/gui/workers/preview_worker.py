@@ -1,6 +1,7 @@
 """PreviewWorker — runs single-image preview operations in a background thread."""
 from __future__ import annotations
 
+import inspect
 import pickle
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -109,8 +110,9 @@ class PreviewWorker(QObject):
 
             elif self._op == "segment":
                 from microProfiler.segmentation.cellpose import segment_single
+                valid = set(inspect.signature(segment_single).parameters) - {"row"}
                 c1_img, c2_img, mask = segment_single(
-                    row, **self._params
+                    row, **{k: v for k, v in self._params.items() if k in valid}
                 )
                 extra["c1_img"] = c1_img
                 extra["c2_img"] = c2_img
@@ -133,4 +135,5 @@ class PreviewWorker(QObject):
         """Request cancellation of the running preview."""
         if self._thread.isRunning():
             self._thread.quit()
-            self._thread.wait(3000)
+            if not self._thread.wait(3000):
+                self._thread.terminate()

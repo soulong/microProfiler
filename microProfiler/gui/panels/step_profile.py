@@ -829,6 +829,7 @@ class ProfileStepPanel(BaseStepPanel):
                 block._remove_btn.clicked.connect(lambda checked, b=block: self._remove_block(b))
                 self._wire_block_signals(block)
                 self._load_block_from_stored(block, stored, prefix)
+                self._compact_block(block)
                 self._blocks.append(block)
                 self._obj_layout.addWidget(block)
 
@@ -992,6 +993,7 @@ class ProfileStepPanel(BaseStepPanel):
                     pair = cb.text().split("-")
                     cb.setChecked(pair in corr_pairs)
 
+                self._compact_block(block)
                 self._blocks.append(block)
                 self._obj_layout.addWidget(block)
 

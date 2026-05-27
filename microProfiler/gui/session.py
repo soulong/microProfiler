@@ -28,14 +28,14 @@ def detect_disk_state(directory: Path) -> Dict[str, bool]:
     if not directory.exists():
         return state
 
-    images_dir = directory / "Images"
-    if images_dir.is_dir() and list(images_dir.glob("*.tiff")):
-        state["convert"] = True
-
-    images_dir = directory / "Images"
-    mask_files = list(images_dir.glob("mask_*.tiff")) if images_dir.is_dir() else []
-    if mask_files:
-        state["segment"] = True
+    for subdir in ("image", "Images"):
+        images_dir = directory / subdir
+        if images_dir.is_dir() and list(images_dir.glob("*.tiff")):
+            state["convert"] = True
+            mask_files = list(images_dir.glob("*_cp_masks*.png")) + list(images_dir.glob("mask_*.tiff"))
+            if mask_files:
+                state["segment"] = True
+            break
 
     if (directory / "results.db").exists():
         state["profile"] = True

@@ -67,7 +67,7 @@ def setup_logging(
         qt_handler.setLevel(level)
         qt_handler.setFormatter(fmt)
         logger.addHandler(qt_handler)
-    elif clear_existing:
+    elif clear_existing or not logger.hasHandlers():
         console = logging.StreamHandler(sys.stdout)
         console.setLevel(level)
         console.setFormatter(fmt)

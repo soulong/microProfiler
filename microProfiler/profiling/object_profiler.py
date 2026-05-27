@@ -16,6 +16,7 @@ from tqdm import tqdm
 from microProfiler.io.dataset import ImageDataset
 from microProfiler.io.database import Database
 from microProfiler.profiling.extras import (
+    _named,
     make_glcm,
     make_granularity,
     make_radial_distribution,
@@ -53,11 +54,6 @@ _SHAPE_RENAMES: Dict[str, str] = {
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────
-
-def _named(fn, name: str):
-    fn.__name__ = name
-    fn.__qualname__ = name
-    return fn
 
 
 def _resolve_indices(
@@ -571,6 +567,8 @@ def profile_objects(
                             completed += 1
                             if progress_cb:
                                 progress_cb(f"Profile {mask_name}", completed, n_total, "")
+                        except InterruptedError:
+                            raise
                         except Exception:
                             log.exception("Object profiling failed for row %d — skipping", chunk_start + task_idx)
                             completed += 1

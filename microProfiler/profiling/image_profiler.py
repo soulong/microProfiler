@@ -138,6 +138,8 @@ def profile_images(
         SQLite output path.  ``None`` returns a DataFrame.
     table_name : str
         Table name for DB output.
+    progress_cb : callable, optional
+        Progress callback ``(step, completed, total, message) -> None``.
     n_workers : int
         Number of worker processes (1 = sequential).
 
@@ -207,6 +209,8 @@ def profile_images(
                             completed += 1
                             if progress_cb:
                                 progress_cb("Profile image", completed, n_total, "")
+                        except InterruptedError:
+                            raise
                         except Exception:
                             log.exception("Image profiling failed for row %d — skipping", chunk_start + task_idx)
                             completed += 1

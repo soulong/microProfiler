@@ -133,6 +133,7 @@ def segment_single(
     merge2: str = "mean",
     model_name: str = "cpsam",
     diameter: Optional[float] = None,
+    normalize: Optional[Dict] = None,
     flow_threshold: float = 0.4,
     cellprob_threshold: float = 0.0,
     resize_factor: float = 1.0,
@@ -170,9 +171,11 @@ def segment_single(
     model = models.CellposeModel(device=device, pretrained_model=model_name)
     img = build_cellpose_image(row, chan1, chan2, merge1, merge2, resize_factor)
     diameter_val = None if diameter is None or diameter <= 0 else int(diameter * resize_factor)
+    if normalize is None:
+        normalize = {"percentile": [0.1, 99.9]}
     masks, flows, _ = model.eval(
         img,
-        normalize={"percentile": [0.1, 99.9]},
+        normalize=normalize,
         diameter=diameter_val,
         flow_threshold=flow_threshold,
         cellprob_threshold=cellprob_threshold,
