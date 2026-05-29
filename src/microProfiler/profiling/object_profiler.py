@@ -249,7 +249,28 @@ def measure_objects(
     Returns
     -------
     pd.DataFrame
-        One row per object.
+        One row per object.  Columns include:
+
+        - **Shape**: ``shape_area``, ``shape_eccentricity``,
+          ``shape_equivalent_diameter_area``, ``shape_extent``,
+          ``shape_feret_diameter_max``, ``shape_major_axis_length``,
+          ``shape_minor_axis_length``, ``shape_perimeter``,
+          ``shape_solidity``.
+        - **Boundary**: ``is_boundary`` — ``True`` if the object touches
+          the image edge.
+        - **Parent**: ``parent_{name}`` — parent label for hierarchical
+          segmentation.
+        - **Intensity**: ``intensity_mean_{ch}``, ``intensity_median_{ch}``,
+          ``intensity_std_{ch}``, ``intensity_sum_{ch}``.
+        - **Radial**: ``radial_bin{i}_{ch}`` — fraction of total object
+          intensity in each radial shell (i=1 → outermost).
+        - **Granularity**: ``granularity_scale{s}_{ch}`` — fraction of
+          texture removed at each scale.
+        - **GLCM**: ``glcm_{prop}_d{d}_{ch}`` — texture features
+          (contrast, dissimilarity, homogeneity, energy, correlation,
+          ASM, entropy).
+        - **Correlation**: ``correlation_pearson_{chA}_{chB}`` —
+          per-object Pearson R between channel pairs.
     """
     if img.ndim != 3:
         raise ValueError(f"img must be (Y, X, C), got {img.shape}")

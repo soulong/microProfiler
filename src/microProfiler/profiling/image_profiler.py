@@ -126,22 +126,26 @@ def profile_images(
 ) -> Optional[pd.DataFrame]:
     """Profile all images in a dataset at the whole-image level.
 
+    Uses ``ProcessPoolExecutor`` when ``n_workers > 1``.
+
     Parameters
     ----------
     ds : ImageDataset
         Dataset to profile.
     channels : list of str, optional
-        Channels to profile.  ``None`` = all.
-    thresholds : dict, optional
-        Per-channel thresholds.
+        Channels to profile.  ``None`` = all intensity channels.
+    thresholds : dict of str → float, optional
+        Per-channel thresholds for object detection, e.g.
+        ``{"ch1": 500.0}``.
     db_path : str or Path, optional
         SQLite output path.  ``None`` returns a DataFrame.
     table_name : str
-        Table name for DB output.
+        Table name for DB output (default ``"image"``).
     progress_cb : callable, optional
-        Progress callback ``(step, completed, total, message) -> None``.
+        Progress callback ``fn(step, current, total, message)``.
     n_workers : int
-        Number of worker processes (1 = sequential).
+        Number of worker processes (``1`` = sequential).  Default:
+        half of CPU cores.
 
     Returns
     -------

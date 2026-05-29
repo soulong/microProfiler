@@ -72,11 +72,15 @@ def z_project_dataset(
     method : str
         ``"max"``, ``"mean"``, or ``"min"``.
     delete_original : bool
-        Delete original Z-stack files after projection (only when not inplace).
+        Delete original Z-stack files after projection (only when not
+        inplace).
     root_dir : str or Path, optional
         Root directory for output (defaults to ``ds.measurement_dir.parent``).
     inplace : bool
-        If True, write projected images into the dataset directory (in-place).
+        If True, write projected images into the dataset directory
+        (in-place).
+    progress_cb : callable, optional
+        Progress callback ``fn(step, current, total, message)``.
 
     Returns
     -------

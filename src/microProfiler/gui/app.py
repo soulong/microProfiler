@@ -1,11 +1,21 @@
 """QApplication bootstrap for the microProfiler GUI."""
-from pathlib import Path
+from __future__ import annotations
+
 import sys
+from importlib.resources import files
 
 from PySide6.QtGui import QColor, QIcon, QPalette
 from PySide6.QtWidgets import QApplication
 
 from microProfiler.logging_utils import setup_logging
+
+
+def _resource(name: str) -> str | None:
+    """Return the path to a bundled resource file, or *None*."""
+    try:
+        return str(files("microProfiler.resources") / name)
+    except Exception:
+        return None
 
 
 def main() -> None:
@@ -15,7 +25,6 @@ def main() -> None:
     app.setStyle("Fusion")
     app.setApplicationName("microProfiler")
     app.setOrganizationName("microProfiler")
-
 
     # Dark palette for title bar and system dialogs
     palette = QPalette()
@@ -33,13 +42,14 @@ def main() -> None:
     palette.setColor(QPalette.HighlightedText, QColor(30, 30, 46))
     app.setPalette(palette)
 
-    icon_path = Path(__file__).parent / "icon.png"
-    if icon_path.exists():
-        app.setWindowIcon(QIcon(str(icon_path)))
+    icon_path = _resource("icon.ico")
+    if icon_path:
+        app.setWindowIcon(QIcon(icon_path))
 
-    qss_path = Path(__file__).parent / "style.qss"
-    if qss_path.exists():
-        app.setStyleSheet(qss_path.read_text(encoding="utf-8"))
+    qss_path = _resource("style.qss")
+    if qss_path:
+        with open(qss_path, encoding="utf-8") as f:
+            app.setStyleSheet(f.read())
 
     from microProfiler.gui.main_window import MainWindow
 

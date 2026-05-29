@@ -220,6 +220,10 @@ def segment_dataset(
 ) -> ImageDataset:
     """Run Cellpose-SAM segmentation on every image in the dataset.
 
+    Produces ``_cp_masks_{object_name}.png`` files alongside the source
+    images.  After completion, call ``ds.build_metadata()`` to pick up
+    the new mask columns.
+
     Parameters
     ----------
     ds : ImageDataset
@@ -227,33 +231,39 @@ def segment_dataset(
     object_name : str
         Suffix for mask filenames (e.g., ``"cell"``).
     chan1 : list of str, optional
-        First channel group.  Defaults to first intensity channel.
+        First channel group (C1 in Cellpose).  Defaults to first
+        intensity channel.
     chan2 : list of str, optional
-        Second channel group.  ``None`` means C2 = zeros.
+        Second channel group (C2 in Cellpose).  ``None`` means C2 is
+        zeros.
     merge1, merge2 : str
         Merge method: ``"mean"``, ``"max"``, or ``"min"``.
     model_name : str
         Cellpose model name or path.
     diameter : float, optional
-        Object diameter in pixels (``None`` = auto).
+        Object diameter in pixels (``None`` = auto-detect).
     normalize : dict, optional
-        Normalization params, e.g. ``{"percentile": [0.1, 99.9]}``.
+        Normalization params for Cellpose, e.g.
+        ``{"percentile": [0.1, 99.9]}``.
     resize_factor : float
-        Resize factor before segmentation.
+        Resize factor applied before segmentation (not written to disk).
     overwrite_mask : bool
-        Overwrite existing mask files.
+        Re-run segmentation even if mask file exists.
     flow_threshold : float
-        Cellpose flow threshold.
+        Cellpose flow threshold (lower = more masks).
     cellprob_threshold : float
-        Cell probability threshold.
+        Cell probability threshold (lower = more masks).
     gpu_batch_size : int
-        GPU patch batch size for Cellpose ``model.eval`` (number of patches
+        GPU batch size for Cellpose ``model.eval`` (number of patches
         processed in parallel on the GPU, not the number of images).
+    progress_cb : callable, optional
+        Progress callback ``fn(step, current, total, message)``.
 
     Returns
     -------
     ImageDataset
-        The input dataset with mask columns populated.
+        The input dataset with mask columns populated (call
+        ``ds.build_metadata()`` to refresh).
     """
     summary: Dict = {
         "success": False,

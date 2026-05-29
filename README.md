@@ -1,9 +1,9 @@
 # microProfiler
 
-[![Package Version](https://shields.io)](https://github.com)
-[![Latest Release](https://shields.io)](https://github.com)
-![Python Version](https://shields.io)(https://github.com)
-[![License](https://shields.io)](https://github.com)
+[![Release](https://img.shields.io/github/v/release/soulong/microProfiler)](https://github.com/soulong/microProfiler/releases)
+[![Last Commit](https://img.shields.io/github/last-commit/soulong/microProfiler)](https://github.com/soulong/microProfiler/commits/main)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
+[![License](https://img.shields.io/github/license/soulong/microProfiler)](LICENSE)
 
 Microscopy image preprocessing, segmentation, and profiling pipeline for multi-well plate data.
 
@@ -27,7 +27,12 @@ Converts vendor-specific formats (Operetta, MICA) into a unified file structure,
 ### Quick Install
 
 ```bash
-pip install git+https://github.com/soulong/microProfiler.git
+conda create -n micro
+conda activate micro
+
+git clone https://github.com/soulong/microProfiler.git
+cd microProfiler
+pip install .
 ```
 
 ### GPU-Accelerated Install (Recommended)
@@ -58,12 +63,15 @@ pip install microProfiler
 
 This installs cellpose and all remaining dependencies automatically.
 
-### Conda Install
+### Windows Desktop Shortcut
+
+After installing in the `micro` conda environment, create a desktop shortcut that launches microProfiler without opening a console window:
 
 ```bash
-conda env create -f micro.yml
-conda activate micro
+microprofiler-install-shortcut
 ```
+
+This places a shortcut on the Desktop and in the Start Menu. The shortcut uses `pythonw.exe` from the `micro` environment for a clean, console-free launch.
 
 ## Pipeline Order
 

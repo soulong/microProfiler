@@ -79,6 +79,8 @@ def tile_dataset(
         Root directory for output (defaults to ``ds.measurement_dir.parent``).
     inplace : bool
         If True, write tiles into the dataset directory (in-place).
+    progress_cb : callable, optional
+        Progress callback ``fn(step, current, total, message)``.
 
     Returns
     -------

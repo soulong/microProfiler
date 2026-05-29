@@ -30,7 +30,18 @@ class ProjectionMethod(str, Enum):
 
 
 class ConvertConfig(BaseModel):
-    """Converter configuration."""
+    """Converter configuration.
+
+    Fields
+    ------
+    output_name : str
+        Output subdirectory name under root (default ``"image"``).
+    resize_factor : float
+        Resize scale factor during conversion (0.1–4.0, default 1.0).
+    delete_original : bool
+        Delete original vendor files after conversion (default
+        ``False``).
+    """
 
     output_name: str = Field("image", description="Output directory name under root")
     resize_factor: float = Field(
@@ -42,7 +53,34 @@ class ConvertConfig(BaseModel):
 
 
 class PipelineConfig(BaseModel):
-    """Top-level pipeline configuration."""
+    """Top-level pipeline configuration.
+
+    All step configs are optional — only steps with non-None config are
+    executed.
+
+    Fields
+    ------
+    input_dir : Path
+        Path to raw measurement directory (required).
+    output_dir : Path or None
+        Output directory (defaults to ``input_dir``).
+    format : VendorFormat
+        Vendor format of input data (default ``"operetta"``).
+    convert : ConvertConfig or None
+        Converter configuration.
+    resize : ResizeConfig or None
+        Resize step configuration.
+    basic_correction : BasicConfig or None
+        BaSiC shading correction configuration.
+    z_projection : ZProjectionConfig or None
+        Z-projection configuration.
+    tile : TileConfig or None
+        Tile splitting configuration.
+    segmentations : list of SegmentationConfig
+        Segmentation configurations (multi-segmentation supported).
+    profiling : ProfilingConfig or None
+        Profiling configuration.
+    """
 
     model_config = ConfigDict(validate_assignment=True)
 
@@ -76,13 +114,32 @@ class PipelineConfig(BaseModel):
 
 
 class ResizeConfig(BaseModel):
-    """Image resizing configuration."""
+    """Image resizing configuration.
+
+    Fields
+    ------
+    scale_factor : float
+        Resize scale factor (0.1–4.0, default 1.0).
+    """
 
     scale_factor: float = Field(1.0, ge=0.1, le=4.0, description="Resize scale factor")
 
 
 class BasicConfig(BaseModel):
-    """BaSiC shading correction configuration."""
+    """BaSiC shading correction configuration.
+
+    Fields
+    ------
+    mode : str
+        One of ``"fit"``, ``"transform"``, or ``"fit-transform"``
+        (default).
+    n_image : int
+        Number of images for fitting (default 50).
+    working_size : int
+        Working size for BaSiC model (≥16, default 64).
+    enable_darkfield : bool
+        Enable darkfield estimation (default ``False``).
+    """
 
     mode: str = Field("fit-transform", pattern=r"^(fit|transform|fit-transform)$")
     n_image: int = Field(50, ge=1, description="Number of images for fitting")
@@ -91,20 +148,56 @@ class BasicConfig(BaseModel):
 
 
 class ZProjectionConfig(BaseModel):
-    """Z-stack projection configuration."""
+    """Z-stack projection configuration.
+
+    Fields
+    ------
+    method : ProjectionMethod
+        Z-stack projection method (default ``"max"``).
+    """
 
     method: ProjectionMethod = Field(ProjectionMethod.max, description="Projection method")
 
 
 class TileConfig(BaseModel):
-    """Non-overlapping tile splitting configuration."""
+    """Non-overlapping tile splitting configuration.
+
+    Fields
+    ------
+    tile_width : int
+        Tile width in pixels (≥64, default 1024).
+    tile_height : int
+        Tile height in pixels (≥64, default 1024).
+    """
 
     tile_width: int = Field(1024, ge=64, description="Tile width in pixels")
     tile_height: int = Field(1024, ge=64, description="Tile height in pixels")
 
 
 class SegmentationConfig(BaseModel):
-    """Cellpose-based segmentation configuration."""
+    """Cellpose-based segmentation configuration.
+
+    Fields
+    ------
+    object_name : str
+        Object name for mask filenames (default ``"cell"``).
+    chan1 : list of str
+        First channel group.
+    chan2 : list of str or None
+        Second channel group (``None`` = C2 is zeros).
+    merge1 : str
+        Merge method for chan1: ``"mean"``, ``"max"``, ``"min"``.
+    merge2 : str
+        Merge method for chan2: ``"mean"``, ``"max"``, ``"min"``.
+    model_name : str
+        Cellpose model name or path (default ``"cpsam"``).
+    diameter : float or None
+        Object diameter in pixels (``None`` = auto-detect).
+    flow_threshold : float
+        Cellpose flow threshold (default 0.4).
+    cellprob_threshold : float
+        Cell probability threshold (default 0.0).
+    """
 
     object_name: str = Field("cell", description="Object name for masks")
     chan1: List[str] = Field(default_factory=list, description="First channel group")
@@ -118,7 +211,41 @@ class SegmentationConfig(BaseModel):
 
 
 class ObjectProfilingConfig(BaseModel):
-    """Per-object profiling configuration."""
+    """Per-object profiling configuration.
+
+    One entry per mask to profile.
+
+    Fields
+    ------
+    object_mask_name : str or None
+        Mask name for object profiling.
+    parent_mask_name : str or None
+        Parent mask for hierarchical assignment.
+    output_table_name : str or None
+        Output table name in results database (defaults to mask name).
+    object_intensity_channels : list of str or None
+        Channels for mean/median/std/sum intensity statistics.
+    object_radial_channels : list of str or None
+        Channels for radial distribution.
+    object_radial_bins : int
+        Number of radial bins (default 5).
+    object_granularity_channels : list of str or None
+        Channels for granularity spectrum.
+    object_granularity_radii : str or None
+        Comma-separated pixel radii for granularity.
+    object_granularity_subsample : float or None
+        Granularity subsample fraction (default 1.0).
+    object_glcm_channels : list of str or None
+        Channels for GLCM texture.
+    object_glcm_distances : list of int or None
+        GLCM pixel distances.
+    object_glcm_levels : int or None
+        GLCM quantization levels (2–256).
+    object_glcm_angles : str or None
+        Comma-separated GLCM angles in degrees.
+    correlation_pairs : list of list of str or None
+        Channel pairs for Pearson correlation.
+    """
 
     object_mask_name: Optional[str] = Field(
         None, description="Mask for object profiling",
@@ -157,7 +284,23 @@ class ObjectProfilingConfig(BaseModel):
 
 
 class ProfilingConfig(BaseModel):
-    """Image-level and object-level profiling configuration."""
+    """Image-level and object-level profiling configuration.
+
+    Fields
+    ------
+    image_channels : list of str or None
+        Channels for whole-image profiling.
+    image_thresholds : dict of str → float or None
+        Per-channel thresholds for image-level object detection.
+    n_workers : int
+        Number of worker processes (default: half of CPU cores, max 64).
+    object_profilings : list of ObjectProfilingConfig
+        Per-object profiling configurations.
+
+    Legacy flat fields (e.g. ``object_mask_name``,
+    ``object_intensity_channels``) are still accepted and automatically
+    migrated into ``object_profilings[0]`` via a model validator.
+    """
 
     image_channels: Optional[List[str]] = Field(
         None, description="Channels for image profiling",

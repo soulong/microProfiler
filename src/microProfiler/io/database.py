@@ -106,7 +106,19 @@ def write_results_to_db(
     results: pd.DataFrame,
     if_exists: str = "append",
 ) -> None:
-    """Convenience: write results using a one-shot Database instance."""
+    """Convenience: write results using a one-shot Database instance.
+
+    Parameters
+    ----------
+    db_path : Path
+        Path to the SQLite database file.
+    table_name : str
+        Target table name.
+    results : pd.DataFrame
+        DataFrame to persist.
+    if_exists : str
+        ``"fail"``, ``"replace"``, or ``"append"`` (default).
+    """
     db = Database(db_path)
     try:
         db.save_table(results, table_name, if_exists=if_exists)

@@ -67,9 +67,25 @@ def make_radial_distribution(
     nbins: int = 4,
     ch_name: str = "ch0",
 ) -> list:
-    """Radial distribution callables.
+    """Create radial distribution callables for ``regionprops_table``.
 
-    Columns: ``radial_bin{i}_{ch_name}`` (i=1 → outermost).
+    Parameters
+    ----------
+    nbins : int
+        Number of radial bins (default ``4``).
+    ch_name : str
+        Channel name suffix for output columns.
+
+    Returns
+    -------
+    list of callable
+        One callable per bin.  Each returns ``float`` — the fraction of
+        total object intensity in that radial shell.
+
+    Output columns
+    --------------
+    ``radial_bin{i}_{ch_name}`` where i=1 is the outermost ring and
+    i=nbins is the centre.
     """
     _state = {"key": None, "result": None}
 
@@ -158,10 +174,27 @@ def make_granularity(
     ch_name: str = "ch0",
     subsample_size: float = 1.0,
 ) -> list:
-    """Granularity callables.
+    """Create granularity callables for ``regionprops_table``.
 
-    Columns: ``granularity_scale{r}_{ch_name}`` where *r* is the
-    user-facing pixel radius (before subsampling).
+    Parameters
+    ----------
+    radii : sequence of float
+        Feature radii in pixels (default ``(1, 3, 6, 8, 12)``).
+    ch_name : str
+        Channel name suffix for output columns.
+    subsample_size : float
+        Subsample fraction for speed (default ``1.0`` = no subsampling).
+
+    Returns
+    -------
+    list of callable
+        One callable per radius.  Each returns ``float`` — the fraction
+        of texture removed at that scale.
+
+    Output columns
+    --------------
+    ``granularity_scale{s}_{ch_name}`` where *s* is the user-facing
+    pixel radius (before subsampling).
     """
     radii = tuple(radii)
     log.debug("Granularity: radii=%s, subsample=%s", radii, subsample_size)
@@ -260,9 +293,33 @@ def make_glcm(
     ch_name: str = "ch0",
     props: Sequence[str] = _GLCM_PROPS,
 ) -> list:
-    """GLCM callables.
+    """Create GLCM texture callables for ``regionprops_table``.
 
-    Columns: ``glcm_{prop}_d{distance}_{ch_name}``.
+    Parameters
+    ----------
+    distances : sequence of int
+        Pixel distances for GLCM computation (default ``(1, 2, 4, 8)``).
+    angles : sequence of float
+        GLCM angles in **radians** (default ``0, π/4, π/2, 3π/4``).
+        The pipeline config accepts angles in **degrees** and converts
+        automatically.
+    levels : int
+        Gray-level quantization (default ``8``, max ``256``).
+    ch_name : str
+        Channel name suffix for output columns.
+    props : sequence of str
+        GLCM properties to compute (default: contrast, dissimilarity,
+        homogeneity, energy, correlation, ASM, entropy).
+
+    Returns
+    -------
+    list of callable
+        One callable per (distance, property) pair.  Each returns
+        ``float``.
+
+    Output columns
+    --------------
+    ``glcm_{prop}_d{distance}_{ch_name}``.
     """
     distances = tuple(distances)
     angles = tuple(angles)
@@ -304,15 +361,20 @@ def measure_channel_correlation(
 
     Parameters
     ----------
-    label_image : (H, W) int
-    multichannel_image : (H, W, C) float
-    channel_pairs : list of (a, b), optional
-        Defaults to all unique unordered pairs.
+    label_image : np.ndarray
+        Labeled segmentation mask of shape ``(H, W)``.
+    multichannel_image : np.ndarray
+        Multichannel intensity image of shape ``(H, W, C)``.
+    channel_pairs : list of (int, int), optional
+        Pairs of channel indices.  Defaults to all unique unordered
+        pairs.
 
     Returns
     -------
     dict
-        Keys: ``"label"``, ``"correlation_pearson_ch{a}_ch{b}"``.
+        Keys: ``"label"`` (int array), and
+        ``"correlation_pearson_ch{a}_ch{b}"`` (float array) for each
+        pair.
     """
     if multichannel_image.ndim != 3:
         raise ValueError("multichannel_image must be (H, W, C)")

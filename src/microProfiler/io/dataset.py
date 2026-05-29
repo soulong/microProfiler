@@ -4,6 +4,18 @@ This is a stripped-down replacement of the original god-class ImageDataset.
 It handles metadata discovery, pattern-based filename parsing, and image
 loading.  Processing logic (preprocessing, segmentation, profiling) lives
 in dedicated modules that accept an ImageDataset as input.
+
+Constants
+---------
+KNOWN_IMAGE_EXTS : tuple
+    ``(".tiff", ".tif", ".jpg", ".jpeg")`` — supported image extensions
+    for auto-detection.
+UNIFIED_IMAGE_PATTERN : re.Pattern
+    Default regex matching unified filenames:
+    ``{well}_f{field}_z{stack}_t{timepoint}_ch{channel}.tiff``.
+UNIFIED_MASK_PATTERN : re.Pattern
+    Default regex matching mask filenames:
+    ``{well}_f{field}_z{stack}_t{timepoint}_ch{channel}_cp_masks_{name}.png``.
 """
 
 from __future__ import annotations

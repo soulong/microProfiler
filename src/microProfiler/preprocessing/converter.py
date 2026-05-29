@@ -250,22 +250,35 @@ def convert_measurement(
     Parameters
     ----------
     input_dir : str or Path
-        Raw measurement directory.
+        Raw measurement directory containing vendor-format files.
     vendor_format : str
         ``"operetta"`` or ``"mica"``.
     root_dir : str or Path, optional
         Root directory for output (defaults to ``input_dir``).
     resize_factor : float
-        Resize scale factor (1.0 = no resize).
+        Resize scale factor applied during conversion write.
+        ``1.0`` = no resize.
     output_name : str
         Output subdirectory name under ``root_dir`` (default ``"image"``).
     delete_original : bool
-        Delete original vendor files after successful conversion (default False).
+        Delete original vendor files after successful conversion
+        (default ``False``).
 
     Returns
     -------
     ImageDataset
         Dataset pointing to the converted files.
+
+    Vendor patterns
+    ---------------
+    Operetta input:
+        ``r{row}c{col}f{field}p{stack}-ch{channel}sk{timepoint}fk1fl1.tiff``
+    Operetta output:
+        ``{well}_f{field}_z{stack}_t{timepoint}_ch{channel}.tiff``
+    MICA input:
+        ``{row}/{col}/Pos{field}.tif``
+    MICA output:
+        ``{well}_f{field}_z1_t1_ch{channel}.tiff``
     """
     input_dir = Path(input_dir)
     root_dir = Path(root_dir) if root_dir else input_dir

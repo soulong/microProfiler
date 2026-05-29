@@ -67,6 +67,8 @@ def resize_dataset(
         If True, resize images in-place (overwrite source directory).
     delete_original : bool
         Delete original files after resizing (only when not inplace).
+    progress_cb : callable, optional
+        Progress callback ``fn(step, current, total, message)``.
 
     Returns
     -------

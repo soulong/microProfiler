@@ -42,6 +42,7 @@ Repository = "https://github.com/soulong/microProfiler"
 
 [project.scripts]
 microprofiler = "microProfiler.__main__:main"
+microprofiler-install-shortcut = "microProfiler._shortcut:create_shortcut"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/microProfiler"]
