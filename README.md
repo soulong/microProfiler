@@ -1,8 +1,8 @@
 # microProfiler
 
-[![PyPI version](https://img.shields.io/pypi/v/microProfiler)](https://pypi.org/project/microProfiler/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Python](https://img.shields.io/pypi/pyversions/microProfiler)
+[![GitHub release (latest by date)](https://shields.io)](https://github.com)
+[![License: MIT](https://shields.io)](LICENSE)
+[![GitHub top language](https://shields.io)](https://github.com)
 
 Microscopy image preprocessing, segmentation, and profiling pipeline for multi-well plate data.
 
