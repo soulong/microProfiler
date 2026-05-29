@@ -8,20 +8,25 @@ Microscopy image preprocessing, segmentation, and profiling pipeline for multi-w
 
 Converts vendor-specific formats (Operetta, MICA) into a unified file structure, then provides a chainable preprocessing pipeline followed by cell segmentation and feature profiling.
 
-## Requirements
+## Supported Vendor Formats
+
+| Format | Input Pattern | Output Pattern |
+|--------|---------------|----------------|
+| Operetta | `r{row}c{col}f{field}p{stack}-ch{channel}sk{timepoint}fk1fl1.tiff` | `{well}_f{field}_z{stack}_t{timepoint}_ch{channel}.tiff` |
+| MICA | `{row}/{col}/Pos{field}.tif` | `{well}_f{field}_z1_t1_ch{channel}.tiff` |
+
+## Installation
+
+### Requirements
 
 - **Python** >= 3.10
 - **OS**: Windows 10/11 (64-bit) recommended; CLI works cross-platform
 - **GPU** (optional): NVIDIA GPU with CUDA 12+ for faster segmentation
 
-## Installation
-
-### Quick Install (CPU)
-
-Works out of the box — no GPU required:
+### Quick Install
 
 ```bash
-pip install microProfiler
+pip install git+https://github.com/soulong/microProfiler.git
 ```
 
 ### GPU-Accelerated Install (Recommended)
@@ -59,14 +64,6 @@ conda env create -f micro.yml
 conda activate micro
 ```
 
-### Development Install
-
-```bash
-git clone https://github.com/soulong/microProfiler.git
-cd microProfiler
-pip install -e ".[dev]"
-```
-
 ## Pipeline Order
 
 ```
@@ -80,6 +77,32 @@ Input → Convert[+resize] → Resize → BaSiC → Z-projection → Tile → Se
 5. **Tile splitting** (optional) — Non-overlapping tiles
 6. **Segmentation** (optional) — Cellpose-SAM object detection
 7. **Profiling** — Image-level and object-level feature extraction. Supports multi-object profiling (profile multiple masks with different channel/feature settings in a single run via `object_profilings` list).
+
+## Desktop GUI
+
+microProfiler includes a PySide6 desktop GUI that wraps the full pipeline with step-by-step image preview, parameter configuration, progress bars, and a log console.
+
+### Running the GUI
+
+```bash
+microprofiler
+```
+
+The `microprofiler` command launches the GUI when called with no arguments. The CLI pipeline is accessible via subcommands:
+
+| Command | Action |
+|---------|--------|
+| `microprofiler` | Launch desktop GUI |
+| `microprofiler run ...` | Run pipeline from CLI |
+| `microprofiler convert ...` | Convert vendor format via CLI |
+| `microprofiler --version` | Print version |
+| `microprofiler --help` | Show CLI help |
+
+### Cellpose Model
+
+microProfiler does **not** bundle Cellpose model weights. On first use:
+- Leave the **Model** field empty to use the built-in `cpsam` model (downloaded automatically by Cellpose).
+- Or click **Browse** to select a custom `.pt` model file.
 
 ## Quick Start (CLI)
 
@@ -170,13 +193,6 @@ df = measure_objects(
 )
 ```
 
-## Supported Vendor Formats
-
-| Format | Input Pattern | Output Pattern |
-|--------|---------------|----------------|
-| Operetta | `r{row}c{col}f{field}p{stack}-ch{channel}sk{timepoint}fk1fl1.tiff` | `{well}_f{field}_z{stack}_t{timepoint}_ch{channel}.tiff` |
-| MICA | `{row}/{col}/Pos{field}.tif` | `{well}_f{field}_z1_t1_ch{channel}.tiff` |
-
 ## Key Modules
 
 | Module | Purpose |
@@ -192,38 +208,6 @@ df = measure_objects(
 | `profiling.image_profiler` | Whole-image features |
 | `profiling.object_profiler` | Per-object features (shape, intensity, texture) |
 | `profiling.extras` | Radial distribution, granularity, GLCM, correlation |
-
-## Desktop GUI
-
-microProfiler includes a PySide6 desktop GUI that wraps the full pipeline with step-by-step image preview, parameter configuration, progress bars, and a log console.
-
-### System Requirements
-
-- **OS**: Windows 10/11 (64-bit) — GUI is Windows-optimized; CLI works cross-platform
-- **RAM**: 16 GB minimum (32 GB recommended for large datasets)
-- **GPU**: NVIDIA GPU with CUDA 12+ (recommended for segmentation speed; CPU fallback works)
-
-### Running the GUI
-
-```bash
-microprofiler
-```
-
-The `microprofiler` command launches the GUI when called with no arguments. The CLI pipeline is accessible via subcommands:
-
-| Command | Action |
-|---------|--------|
-| `microprofiler` | Launch desktop GUI |
-| `microprofiler run ...` | Run pipeline from CLI |
-| `microprofiler convert ...` | Convert vendor format via CLI |
-| `microprofiler --version` | Print version |
-| `microprofiler --help` | Show CLI help |
-
-### Cellpose Model
-
-microProfiler does **not** bundle Cellpose model weights. On first use:
-- Leave the **Model** field empty to use the built-in `cpsam` model (downloaded automatically by Cellpose).
-- Or click **Browse** to select a custom `.pt` model file.
 
 ## API Documentation
 

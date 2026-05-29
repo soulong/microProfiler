@@ -39,13 +39,6 @@ dependencies = [
     "PySide6",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest",
-    "pytest-cov",
-    "ruff",
-]
-
 [project.urls]
 Homepage = "https://github.com/soulong/microProfiler"
 Repository = "https://github.com/soulong/microProfiler.git"
@@ -58,13 +51,6 @@ where = ["."]
 
 [tool.setuptools.package-data]
 microProfiler = ["gui/*.qss", "gui/*.png"]
-
-[tool.ruff]
-line-length = 100
-target-version = "py310"
-
-[tool.ruff.lint]
-select = ["E", "F", "W"]
 
 [tool.pytest.ini_options]
 markers = [

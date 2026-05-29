@@ -18,9 +18,10 @@ dependencies:
   - natsort
   - pydantic>=2.0
   - pillow
+  - matplotlib
+  - openpyxl
   - pytest
   - pytest-cov
   - ruff
-  - pip
   - pip:
-    - -e .
+    - pygwalker>=0.4
