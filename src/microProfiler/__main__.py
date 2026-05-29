@@ -4,6 +4,8 @@ from __future__ import annotations
 import logging
 import sys
 
+from microProfiler.logging_utils import _ensure_std_streams
+
 
 def main() -> int:
     """Dispatch to GUI or CLI based on command-line arguments.
@@ -17,6 +19,7 @@ def main() -> int:
     int
         Exit code (0 for success, 1 for unknown arguments).
     """
+    _ensure_std_streams()
     debug_mode = "--debug" in sys.argv
 
     if "--version" in sys.argv:

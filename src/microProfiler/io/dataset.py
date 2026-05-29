@@ -195,6 +195,30 @@ class ImageDataset:
             f"masks={self._mask_colnames})"
         )
 
+    def from_copy(self) -> ImageDataset:
+        """Create a lightweight clone sharing the same directory and patterns.
+
+        The clone gets its own ``_metadata`` DataFrame (copied), so
+        in-place operations like ``filter_metadata`` do not affect the
+        original.  No disk I/O occurs.
+
+        Returns
+        -------
+        ImageDataset
+            A shallow copy with independent metadata.
+        """
+        clone = ImageDataset.__new__(ImageDataset)
+        clone.measurement_dir = self.measurement_dir
+        clone._image_pattern = self._image_pattern
+        clone._mask_pattern = self._mask_pattern
+        clone._image_subdir_pattern = self._image_subdir_pattern
+        clone._metadata = self._metadata.copy()
+        clone._intensity_colnames = list(self._intensity_colnames)
+        clone._mask_colnames = list(self._mask_colnames)
+        clone._img_shape = self._img_shape
+        clone._img_dtype = self._img_dtype
+        return clone
+
     # ── Metadata discovery ──────────────────────────────────────────────
 
     def build_metadata(self) -> None:

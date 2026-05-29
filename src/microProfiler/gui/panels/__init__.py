@@ -5,11 +5,12 @@ from microProfiler.gui.panels.step_resize import ResizeStepPanel
 from microProfiler.gui.panels.step_basic import BaSiCStepPanel
 from microProfiler.gui.panels.step_zproject import ZProjectStepPanel
 from microProfiler.gui.panels.step_tile import TileStepPanel
+from microProfiler.gui.panels.step_filter import FilterPanel
 from microProfiler.gui.panels.step_segment import SegmentStepPanel
 from microProfiler.gui.panels.step_profile import ProfileStepPanel
 
 __all__ = [
     "BaseStepPanel", "ConvertStepPanel", "ResizeStepPanel",
     "BaSiCStepPanel", "ZProjectStepPanel", "TileStepPanel",
-    "SegmentStepPanel", "ProfileStepPanel",
+    "FilterPanel", "SegmentStepPanel", "ProfileStepPanel",
 ]

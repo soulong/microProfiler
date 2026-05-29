@@ -98,6 +98,7 @@ class Sidebar(QWidget):
     PAGES = [
         ("convert", "Convert", "▶"),
         ("preprocess", "Pre-process", "▶"),
+        ("filter", "Filter", "🔍"),
         ("segment", "Segmentation", "▶"),
         ("profile", "Profiling", "▶"),
     ]

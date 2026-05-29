@@ -173,8 +173,8 @@ def _run_segment(
         if not name:
             continue
         log.debug(
-            "Segment: object=%s, model=%s, chan1=%s, chan2=%s, diameter=%s",
-            name, seg_cfg.model_name, seg_cfg.chan1, seg_cfg.chan2, seg_cfg.diameter,
+            "Segment: object=%s, model=%s, chan1=%s, chan2=%s, diameter=%s, resize_factor=%s",
+            name, seg_cfg.model_name, seg_cfg.chan1, seg_cfg.chan2, seg_cfg.diameter, seg_cfg.resize_factor,
         )
         if progress_cb:
             progress_cb(f"Segment ({name})", 0, 1, f"Starting segmentation ({name})...")
@@ -187,8 +187,10 @@ def _run_segment(
             merge2=seg_cfg.merge2,
             model_name=seg_cfg.model_name,
             diameter=seg_cfg.diameter,
+            resize_factor=seg_cfg.resize_factor,
             flow_threshold=seg_cfg.flow_threshold,
             cellprob_threshold=seg_cfg.cellprob_threshold,
+            gpu_batch_size=seg_cfg.gpu_batch_size,
             progress_cb=progress_cb,
         )
         if progress_cb:

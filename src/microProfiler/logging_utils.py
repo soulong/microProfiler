@@ -3,11 +3,26 @@
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Optional
 
 _DEFAULT_LEVEL: int = logging.INFO
+
+
+def _ensure_std_streams() -> None:
+    """Redirect ``sys.stdout`` / ``sys.stderr`` to ``os.devnull`` when ``None``.
+
+    ``pythonw.exe`` (used by the Windows shortcut) launches the process
+    without a console, leaving both streams as ``None``.  Libraries such
+    as ``tqdm`` and ``logging.StreamHandler`` assume they are writable
+    and crash with ``'NoneType' object has no attribute 'write'``.
+    """
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, "w")
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, "w")
 
 
 def set_default_logging_level(level: int) -> None:
@@ -68,10 +83,12 @@ def setup_logging(
         qt_handler.setFormatter(fmt)
         logger.addHandler(qt_handler)
     elif clear_existing or not logger.hasHandlers():
-        console = logging.StreamHandler(sys.stdout)
-        console.setLevel(level)
-        console.setFormatter(fmt)
-        logger.addHandler(console)
+        stream = sys.stdout if sys.stdout is not None else sys.stderr
+        if stream is not None:
+            console = logging.StreamHandler(stream)
+            console.setLevel(level)
+            console.setFormatter(fmt)
+            logger.addHandler(console)
 
     if log_file:
         log_file = Path(log_file)

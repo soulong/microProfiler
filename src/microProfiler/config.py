@@ -191,12 +191,16 @@ class SegmentationConfig(BaseModel):
         Merge method for chan2: ``"mean"``, ``"max"``, ``"min"``.
     model_name : str
         Cellpose model name or path (default ``"cpsam"``).
+    resize_factor : float
+        Resize factor applied to images before segmentation (default 1.0).
     diameter : float or None
         Object diameter in pixels (``None`` = auto-detect).
     flow_threshold : float
         Cellpose flow threshold (default 0.4).
     cellprob_threshold : float
         Cell probability threshold (default 0.0).
+    gpu_batch_size : int
+        Batch size for GPU inference (default 16).
     """
 
     object_name: str = Field("cell", description="Object name for masks")
@@ -205,9 +209,11 @@ class SegmentationConfig(BaseModel):
     merge1: str = Field("mean", pattern=r"^(mean|max|min)$")
     merge2: str = Field("mean", pattern=r"^(mean|max|min)$")
     model_name: str = Field("cpsam", description="Cellpose model name")
+    resize_factor: float = Field(1.0, gt=0.0, description="Resize factor applied before segmentation")
     diameter: Optional[float] = Field(None, description="Object diameter in pixels")
     flow_threshold: float = Field(0.4, ge=0.0)
     cellprob_threshold: float = Field(0.0, ge=0.0)
+    gpu_batch_size: int = Field(16, ge=1, description="Batch size for GPU inference")
 
 
 class ObjectProfilingConfig(BaseModel):

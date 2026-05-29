@@ -78,8 +78,15 @@ class SegmentBlockWidget(QWidget):
             self._remove_btn.clicked.connect(self._on_remove)
         layout.addLayout(row1)
 
-        # Row 2: Diameter + thresholds
+        # Row 2: Resize factor + Diameter + thresholds
         row2 = QHBoxLayout()
+        row2.addWidget(QLabel("Resize factor:"))
+        self._resize_factor = QDoubleSpinBox()
+        self._resize_factor.setRange(0.01, 10.0)
+        self._resize_factor.setValue(1.0)
+        self._resize_factor.setSingleStep(0.1)
+        self._resize_factor.setDecimals(2)
+        row2.addWidget(self._resize_factor)
         row2.addWidget(QLabel("Diameter:"))
         self._diameter = QSpinBox()
         self._diameter.setRange(0, 10000)
@@ -98,6 +105,11 @@ class SegmentBlockWidget(QWidget):
         self._cellprob_threshold.setValue(0.0)
         self._cellprob_threshold.setSingleStep(0.1)
         row2.addWidget(self._cellprob_threshold)
+        row2.addWidget(QLabel("GPU batch:"))
+        self._gpu_batch_size = QSpinBox()
+        self._gpu_batch_size.setRange(1, 512)
+        self._gpu_batch_size.setValue(16)
+        row2.addWidget(self._gpu_batch_size)
         row2.addStretch()
         layout.addLayout(row2)
 
@@ -121,6 +133,11 @@ class SegmentBlockWidget(QWidget):
         self._merge1 = QComboBox()
         self._merge1.addItems(["mean", "max", "min"])
         row3.addWidget(self._merge1)
+        merge1_hint = QLabel("(combine selected channels)")
+        merge1_hint.setStyleSheet(
+            "QLabel { color: #888; font-size: 11px; font-style: italic; padding-left: 4px; }"
+        )
+        row3.addWidget(merge1_hint)
         row3.addStretch()
         layout.addLayout(row3)
 
@@ -143,29 +160,34 @@ class SegmentBlockWidget(QWidget):
         self._merge2 = QComboBox()
         self._merge2.addItems(["mean", "max", "min"])
         row4.addWidget(self._merge2)
+        merge2_hint = QLabel("(combine selected channels)")
+        merge2_hint.setStyleSheet(
+            "QLabel { color: #888; font-size: 11px; font-style: italic; padding-left: 4px; }"
+        )
+        row4.addWidget(merge2_hint)
         row4.addStretch()
         layout.addLayout(row4)
 
         # Row 5: Right-aligned Pick Random and Preview Segment
-        row4 = QHBoxLayout()
-        row4.addStretch()
+        row5 = QHBoxLayout()
+        row5.addStretch()
         self._pick_btn = QPushButton("Pick Random")
         self._pick_btn.setProperty("class", "secondary")
         self._preview_btn = QPushButton("Preview Segment")
         self._preview_btn.setProperty("class", "secondary")
-        row4.addWidget(self._pick_btn)
-        row4.addWidget(self._preview_btn)
+        row5.addWidget(self._pick_btn)
+        row5.addWidget(self._preview_btn)
         self._mask_toggle_btn = QPushButton("Show Mask")
         self._mask_toggle_btn.setCheckable(True)
         self._mask_toggle_btn.setChecked(True)
         self._mask_toggle_btn.setProperty("class", "secondary")
         self._mask_toggle_btn.setEnabled(False)
         self._mask_toggle_btn.clicked.connect(self._on_mask_toggle)
-        row4.addWidget(self._mask_toggle_btn)
+        row5.addWidget(self._mask_toggle_btn)
         self._mask_toggle_btn.setMinimumWidth(
             self.fontMetrics().horizontalAdvance(self._pick_btn.text()) + 32
         )
-        layout.addLayout(row4)
+        layout.addLayout(row5)
 
         # Preview row — centered C1/C2 images, tightly packed
         preview_row = QHBoxLayout()
@@ -273,15 +295,18 @@ class SegmentBlockWidget(QWidget):
             "chan2": chan2,
             "merge1": self._merge1.currentText(),
             "merge2": self._merge2.currentText(),
+            "resize_factor": self._resize_factor.value(),
             "diameter": self._diameter.value() if self._diameter.value() > 0 else None,
             "flow_threshold": self._flow_threshold.value(),
             "cellprob_threshold": self._cellprob_threshold.value(),
+            "gpu_batch_size": self._gpu_batch_size.value(),
         }
 
     def set_locked(self, locked: bool) -> None:
         for w in (
             self._object_name, self._model_name, self._model_browse,
-            self._diameter, self._flow_threshold, self._cellprob_threshold,
+            self._resize_factor, self._diameter, self._flow_threshold, self._cellprob_threshold,
+            self._gpu_batch_size,
             self._merge1, self._merge2, self._pick_btn, self._preview_btn,
             self._remove_btn,
         ):
@@ -383,9 +408,11 @@ class SegmentStepPanel(BaseStepPanel):
     def _wire_block_signals(self, block: SegmentBlockWidget) -> None:
         """Wire all parameter-change signals on a block to trigger mask sync / auto-save."""
         self._wire_param_signal(block._object_name)
+        self._wire_param_signal(block._resize_factor)
         self._wire_param_signal(block._diameter)
         self._wire_param_signal(block._flow_threshold)
         self._wire_param_signal(block._cellprob_threshold)
+        self._wire_param_signal(block._gpu_batch_size)
         self._wire_param_signal(block._model_name)
         self._wire_param_signal(block._merge1)
         self._wire_param_signal(block._merge2)
@@ -535,6 +562,11 @@ class SegmentStepPanel(BaseStepPanel):
                 idx2 = block._model_name.findText(str(cfg["model_name"]))
                 if idx2 >= 0:
                     block._model_name.setCurrentIndex(idx2)
+            if "resize_factor" in cfg:
+                try:
+                    block._resize_factor.setValue(float(cfg["resize_factor"]))
+                except (ValueError, TypeError):
+                    pass
             if "diameter" in cfg:
                 try:
                     block._diameter.setValue(int(cfg["diameter"]))
@@ -548,6 +580,11 @@ class SegmentStepPanel(BaseStepPanel):
             if "cellprob_threshold" in cfg:
                 try:
                     block._cellprob_threshold.setValue(float(cfg["cellprob_threshold"]))
+                except (ValueError, TypeError):
+                    pass
+            if "gpu_batch_size" in cfg:
+                try:
+                    block._gpu_batch_size.setValue(int(cfg["gpu_batch_size"]))
                 except (ValueError, TypeError):
                     pass
             if "merge1" in cfg:
@@ -643,12 +680,16 @@ class SegmentStepPanel(BaseStepPanel):
                 idx = block._model_name.findText(str(cfg["model_name"]))
                 if idx >= 0:
                     block._model_name.setCurrentIndex(idx)
+            if "resize_factor" in cfg:
+                block._resize_factor.setValue(float(cfg["resize_factor"]))
             if "diameter" in cfg and cfg["diameter"] is not None:
                 block._diameter.setValue(int(cfg["diameter"]))
             if "flow_threshold" in cfg:
                 block._flow_threshold.setValue(float(cfg["flow_threshold"]))
             if "cellprob_threshold" in cfg:
                 block._cellprob_threshold.setValue(float(cfg["cellprob_threshold"]))
+            if "gpu_batch_size" in cfg:
+                block._gpu_batch_size.setValue(int(cfg["gpu_batch_size"]))
             if "merge1" in cfg:
                 idx = block._merge1.findText(str(cfg["merge1"]))
                 if idx >= 0:

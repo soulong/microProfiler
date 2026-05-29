@@ -133,6 +133,7 @@ class PipelineController(QObject):
         settings = DictSettings()
         for step in self._w._all_step_panels:
             step.save_to_settings(settings)
+        self._w._filter_panel.save_to_settings(settings)
         sf.save_all_params(settings.to_dict())
         data = sf.load()
         if data:
@@ -174,6 +175,8 @@ class PipelineController(QObject):
             self._w._segment_panel.setChecked(True)
             self._w._profile_panel.setChecked(True)
             self._w._state.dataset = dataset
+            self._w._state._original_dataset = dataset.from_copy()
+            self._w._filter_panel._reset_filters()
             self._w._state.preprocessing_locked = True
             self._w._update_convert_info(dataset)
             logging.getLogger("microProfiler").info("Conversion complete - dataset reloaded.")
@@ -239,6 +242,8 @@ class PipelineController(QObject):
             step.set_locked(True)
         if updated_ds is not None:
             self._w._state.dataset = updated_ds
+            self._w._state._original_dataset = updated_ds.from_copy()
+            self._w._filter_panel._reset_filters()
             self._w._update_convert_info(updated_ds)
             self._w._segment_panel.populate_channels(updated_ds.intensity_colnames)
             self._w._profile_panel.populate_channels(updated_ds.intensity_colnames)
@@ -283,6 +288,8 @@ class PipelineController(QObject):
         updated_ds = getattr(self._w._worker, "_result_ds", None)
         if updated_ds is not None:
             self._w._state.dataset = updated_ds
+            self._w._state._original_dataset = updated_ds.from_copy()
+            self._w._filter_panel._reset_filters()
             self._w._update_convert_info(updated_ds)
             self._w._segment_panel.populate_channels(updated_ds.intensity_colnames)
             self._w._profile_panel.populate_channels(updated_ds.intensity_colnames)
@@ -401,6 +408,8 @@ class PipelineController(QObject):
         updated_ds = getattr(self._w._worker, "_result_ds", None)
         if updated_ds is not None:
             self._w._state.dataset = updated_ds
+            self._w._state._original_dataset = updated_ds.from_copy()
+            self._w._filter_panel._reset_filters()
             self._w._segment_panel.populate_channels(updated_ds.intensity_colnames)
             self._w._profile_panel.populate_channels(updated_ds.intensity_colnames)
             self._w._profile_panel.populate_masks(updated_ds.mask_colnames)
@@ -452,6 +461,8 @@ class PipelineController(QObject):
         updated_ds = getattr(self._w._worker, "_result_ds", None)
         if updated_ds is not None:
             self._w._state.dataset = updated_ds
+            self._w._state._original_dataset = updated_ds.from_copy()
+            self._w._filter_panel._reset_filters()
             self._w._update_convert_info(updated_ds)
             self._w._segment_panel.populate_channels(updated_ds.intensity_colnames)
             self._w._profile_panel.populate_channels(updated_ds.intensity_colnames)

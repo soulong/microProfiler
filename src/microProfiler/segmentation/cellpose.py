@@ -8,6 +8,7 @@ Supports:
 from __future__ import annotations
 
 import gc
+import sys
 import logging
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
@@ -171,6 +172,8 @@ def segment_single(
     model = models.CellposeModel(device=device, pretrained_model=model_name)
     img = build_cellpose_image(row, chan1, chan2, merge1, merge2, resize_factor)
     diameter_val = None if diameter is None or diameter <= 0 else int(diameter * resize_factor)
+    if diameter_val is not None:
+        diameter_val = min(diameter_val, 10000)
     if normalize is None:
         normalize = {"percentile": [0.1, 99.9]}
     masks, flows, _ = model.eval(
@@ -183,10 +186,12 @@ def segment_single(
     )
     if resize_factor != 1.0:
         masks = rescale(masks, 1.0 / resize_factor, order=0).astype(np.uint16)
+        c1_img = rescale(img[0], 1.0 / resize_factor, order=1, preserve_range=True).astype(img.dtype)
+        c2_img = rescale(img[1], 1.0 / resize_factor, order=1, preserve_range=True).astype(img.dtype) if img.shape[0] >= 2 else None
+    else:
+        c1_img = img[0]
+        c2_img = img[1] if img.shape[0] >= 2 else None
     masks = closing(masks)
-
-    c1_img = img[0] if img.shape[0] >= 1 else None
-    c2_img = img[1] if img.shape[0] >= 2 else None
     return c1_img, c2_img, masks
 
 
@@ -298,9 +303,11 @@ def segment_dataset(
     log.info("Loading Cellpose model '%s'...", model_name)
     model = models.CellposeModel(device=device, pretrained_model=model_name)
     diameter_val = None if diameter is None or diameter <= 0 else int(diameter * resize_factor)
+    if diameter_val is not None:
+        diameter_val = min(diameter_val, 10000)
 
     metadata = ds.metadata
-    for idx in tqdm(range(len(metadata)), desc="Cellpose", unit="img"):
+    for idx in tqdm(range(len(metadata)), desc="Cellpose", unit="img", disable=(sys.stdout is None and sys.stderr is None)):
         if progress_cb:
             progress_cb("Segment", idx, len(metadata), f"Image {idx}")
         row = metadata.iloc[idx]

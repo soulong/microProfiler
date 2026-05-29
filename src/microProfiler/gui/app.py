@@ -7,7 +7,7 @@ from importlib.resources import files
 from PySide6.QtGui import QColor, QIcon, QPalette
 from PySide6.QtWidgets import QApplication
 
-from microProfiler.logging_utils import setup_logging
+from microProfiler.logging_utils import _ensure_std_streams, setup_logging
 
 
 def _resource(name: str) -> str | None:
@@ -20,6 +20,7 @@ def _resource(name: str) -> str | None:
 
 def main() -> None:
     """Launch the microProfiler desktop application."""
+    _ensure_std_streams()
     setup_logging()
     app = QApplication(sys.argv)
     app.setStyle("Fusion")

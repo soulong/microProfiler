@@ -77,14 +77,20 @@ segmentations:
     # Cellpose model name or path (default: "cpsam")
     model_name: cpsam
 
+    # Resize factor applied to images before segmentation (default: 1.0)
+    resize_factor: 1.0
+
     # Object diameter in pixels (null = auto-detect)
-    diameter: 30
+    diameter: null
 
     # Cellpose flow threshold (≥0, default: 0.4)
     flow_threshold: 0.4
 
     # Cell probability threshold (≥0, default: 0.0)
     cellprob_threshold: 0.0
+
+    # Batch size for GPU inference (≥1, default: 16)
+    gpu_batch_size: 16
 
   # Example: second segmentation for another object
   # - object_name: nuclei
@@ -98,6 +104,11 @@ profiling:
   image_channels:
     - ch1
     - ch2
+
+  # Per-channel intensity thresholds for image-level object detection (optional)
+  image_thresholds:
+    ch1: 100.0
+    ch2: 200.0
 
   # Number of worker processes (default: half of CPU cores)
   n_workers: 4

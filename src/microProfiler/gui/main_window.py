@@ -37,7 +37,7 @@ from microProfiler.gui.workers.preview_worker import PreviewWorker
 from microProfiler.gui.state import PipelineState
 from microProfiler.gui.sidebar import Sidebar
 from microProfiler.gui.panels import (
-    BaSiCStepPanel, ConvertStepPanel, ProfileStepPanel,
+    BaSiCStepPanel, ConvertStepPanel, FilterPanel, ProfileStepPanel,
     ResizeStepPanel, SegmentStepPanel, TileStepPanel, ZProjectStepPanel,
 )
 from microProfiler.io.dataset import ImageDataset
@@ -119,6 +119,7 @@ class MainWindow(QMainWindow):
         self._tile_panel = TileStepPanel(self._state)
         self._segment_panel = SegmentStepPanel(self._state)
         self._profile_panel = ProfileStepPanel(self._state)
+        self._filter_panel = FilterPanel(self._state)
 
         self._all_step_panels = [
             self._convert_panel, self._resize_panel, self._basic_panel,
@@ -212,7 +213,14 @@ class MainWindow(QMainWindow):
         pre_layout.addWidget(pre_scroll, 1)
         self._stack.addWidget(pre_page)
 
-        # ── Page 2: Segmentation ───────────────────────────────────────
+        # ── Page 2: Filter ─────────────────────────────────────────────
+        filter_page = QWidget()
+        filter_layout = QVBoxLayout(filter_page)
+        filter_layout.setContentsMargins(12, 12, 12, 12)
+        filter_layout.addWidget(self._filter_panel)
+        self._stack.addWidget(filter_page)
+
+        # ── Page 3: Segmentation ───────────────────────────────────────
         seg_page = QWidget()
         seg_layout = QVBoxLayout(seg_page)
         seg_layout.setContentsMargins(12, 12, 12, 12)
@@ -227,7 +235,7 @@ class MainWindow(QMainWindow):
         seg_layout.addWidget(self._run_seg_btn)
         self._stack.addWidget(seg_page)
 
-        # ── Page 3: Profiling ──────────────────────────────────────────
+        # ── Page 4: Profiling ──────────────────────────────────────────
         prof_page = QWidget()
         prof_layout = QVBoxLayout(prof_page)
         prof_layout.setContentsMargins(12, 12, 12, 12)
@@ -320,13 +328,18 @@ class MainWindow(QMainWindow):
         self._segment_panel.pick_requested.connect(self._ctrl.on_segment_pick)
         self._segment_panel.preview_requested.connect(self._ctrl.on_segment_preview)
 
+        # Filter panel
+        self._filter_panel.filter_changed.connect(self._on_filter_changed)
+
         # Sync segmentation object names to profiling mask dropdowns
         self._segment_panel.parameter_changed.connect(self._ctrl._sync_seg_masks_to_profiling)
 
     def _on_navigation_changed(self, page_id: str) -> None:
-        index_map = {"convert": 0, "preprocess": 1, "segment": 2, "profile": 3}
+        index_map = {"convert": 0, "preprocess": 1, "filter": 2, "segment": 3, "profile": 4}
         if page_id in index_map:
             self._stack.setCurrentIndex(index_map[page_id])
+            if page_id == "filter":
+                self._filter_panel.update_dataset()
 
     # ── Logging ────────────────────────────────────────────────────────────
 
@@ -411,6 +424,8 @@ class MainWindow(QMainWindow):
                         raw_pattern = "[A-P]/"
                 ds = ImageDataset(path, image_subdir_pattern=raw_pattern)
                 self._state.dataset = ds
+                self._state._original_dataset = ds.from_copy()
+                self._filter_panel._reset_filters()
 
                 is_converted = self._is_converted(output_path)
 
@@ -479,6 +494,7 @@ class MainWindow(QMainWindow):
                     settings = DictSettings(params)
                     for step in self._all_step_panels:
                         step.load_from_settings(settings)
+                    self._filter_panel.load_from_settings(settings)
                 enabled = data.get("steps_enabled", {})
                 for step in self._all_step_panels:
                     if step.step_name in enabled:
@@ -558,6 +574,28 @@ class MainWindow(QMainWindow):
         self._run_pre_btn.setEnabled(has_ds)
         self._run_seg_btn.setEnabled(has_ds)
         self._run_prof_btn.setEnabled(has_ds)
+
+    def _on_filter_changed(self) -> None:
+        """Called when the filter panel changes the dataset."""
+        ds = self._state.dataset
+        if ds is not None:
+            self._update_convert_info(ds)
+            # Only rebuild channel/mask widgets when the set actually changed
+            # (filtering removes rows, never adds new channel names)
+            ch = tuple(ds.intensity_colnames)
+            masks = tuple(ds.mask_colnames)
+            if ch != getattr(self, "_last_filter_channels", None):
+                self._segment_panel.populate_channels(ds.intensity_colnames)
+                self._profile_panel.populate_channels(ds.intensity_colnames)
+                self._last_filter_channels = ch
+            if masks != getattr(self, "_last_filter_masks", None):
+                self._profile_panel.populate_masks(ds.mask_colnames)
+                self._last_filter_masks = masks
+        status = "idle"
+        orig = self._state._original_dataset
+        if orig is not None and ds is not None and len(ds) < len(orig):
+            status = "running"
+        self._sidebar.set_status("filter", status)
 
     # ── Convert info display ──────────────────────────────────────────────
 
@@ -646,7 +684,11 @@ class MainWindow(QMainWindow):
             step.set_locked(False)
             step.setChecked(False)
         self._state.dataset = None
+        self._state._original_dataset = None
         self._state.random_row_idx = None
+        self._last_filter_channels = None
+        self._last_filter_masks = None
+        self._filter_panel._reset_filters()
         self._input_dir.clear()
         self._output_dir.clear()
         self._output_manually_set = False
@@ -660,6 +702,7 @@ class MainWindow(QMainWindow):
         self._output_browse.setEnabled(not running)
         for step in self._all_step_panels:
             step.setEnabled(not running)
+        self._filter_panel.setEnabled(not running)
 
     def closeEvent(self, event):
         for w in (getattr(self, "_worker", None), getattr(self, "_preview_worker", None)):
