@@ -1,7 +1,8 @@
 # microProfiler
 
-![Python Version](https://shields.io)(https://github.com)
+[![Package Version](https://shields.io)](https://github.com)
 [![Latest Release](https://shields.io)](https://github.com)
+![Python Version](https://shields.io)(https://github.com)
 [![License](https://shields.io)](https://github.com)
 
 Microscopy image preprocessing, segmentation, and profiling pipeline for multi-well plate data.
@@ -20,8 +21,8 @@ Converts vendor-specific formats (Operetta, MICA) into a unified file structure,
 ### Requirements
 
 - **Python** >= 3.10
-- **OS**: Windows 10/11 (64-bit) recommended; CLI works cross-platform
-- **GPU** (optional): NVIDIA GPU with CUDA 12+ for faster segmentation
+- **OS**: Only Windows 11 (64-bit) was tested; CLI works cross-platform
+- **GPU** (optional): NVIDIA GPU with CUDA 12+ for faster cellpose segmentation
 
 ### Quick Install
 
