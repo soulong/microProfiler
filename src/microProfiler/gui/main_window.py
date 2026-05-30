@@ -592,7 +592,7 @@ class MainWindow(QMainWindow):
                 self._profile_panel.populate_masks(ds.mask_colnames)
                 self._last_filter_masks = masks
         status = "idle"
-        orig = self._state._original_dataset
+        orig = self._state.original_dataset
         if orig is not None and ds is not None and len(ds) < len(orig):
             status = "running"
         self._sidebar.set_status("filter", status)

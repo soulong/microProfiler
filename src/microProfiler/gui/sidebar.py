@@ -96,11 +96,11 @@ class Sidebar(QWidget):
     navigation_changed = Signal(str)
 
     PAGES = [
-        ("convert", "Convert", "▶"),
-        ("preprocess", "Pre-process", "▶"),
+        ("convert", "Convert", "📂"),
+        ("preprocess", "Pre-process", "🔧"),
         ("filter", "Filter", "🔍"),
-        ("segment", "Segmentation", "▶"),
-        ("profile", "Profiling", "▶"),
+        ("segment", "Segmentation", "◎"),
+        ("profile", "Profiling", "📊"),
     ]
 
     def __init__(self, parent=None):

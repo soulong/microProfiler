@@ -6,7 +6,7 @@ import re
 from typing import List, Tuple
 
 from natsort import natsorted
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QGroupBox,
@@ -40,6 +40,10 @@ class FilterPanel(QWidget):
         self._state = state
         self._updating = False
         self._filter_widgets: List[Tuple[QComboBox, QLineEdit, QPushButton]] = []
+        self._debounce_timer = QTimer(self)
+        self._debounce_timer.setSingleShot(True)
+        self._debounce_timer.setInterval(300)
+        self._debounce_timer.timeout.connect(self._apply_filters)
         self._build_ui()
 
     # ── UI ──────────────────────────────────────────────────────────────
@@ -71,29 +75,21 @@ class FilterPanel(QWidget):
 
         root.addLayout(info_row)
 
-        # ── Diff ────────────────────────────────────────────────────────
-        diff_group = QGroupBox("Difference")
-        dl = QVBoxLayout(diff_group)
-        self._diff_label = QLabel("")
-        self._diff_label.setWordWrap(True)
-        self._diff_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        dl.addWidget(self._diff_label)
-        root.addWidget(diff_group)
-
         # ── Filter rows ─────────────────────────────────────────────────
         filters_group = QGroupBox("Filters")
         filters_layout = QVBoxLayout(filters_group)
+        filters_layout.setSpacing(6)
 
         self._filters_container = QWidget()
         self._filters_layout = QVBoxLayout(self._filters_container)
         self._filters_layout.setContentsMargins(0, 0, 0, 0)
         self._filters_layout.setSpacing(4)
+        self._filters_layout.setAlignment(Qt.AlignTop)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(self._filters_container)
-        scroll.setMaximumHeight(200)
-        filters_layout.addWidget(scroll)
+        filters_layout.addWidget(scroll, 1)
 
         btn_row = QHBoxLayout()
         self._add_btn = QPushButton("+ Add Filter")
@@ -102,9 +98,9 @@ class FilterPanel(QWidget):
         self._reset_btn = QPushButton("Reset All")
         self._reset_btn.setProperty("class", "secondary")
         self._reset_btn.clicked.connect(self._reset_filters)
-        btn_row.addStretch()
         btn_row.addWidget(self._add_btn)
         btn_row.addWidget(self._reset_btn)
+        btn_row.addStretch()
         filters_layout.addLayout(btn_row)
 
         root.addWidget(filters_group, 1)
@@ -119,7 +115,6 @@ class FilterPanel(QWidget):
             self._before_stats.setProperty("class", "placeholder")
             self._after_stats.setText("No dataset loaded.")
             self._after_stats.setProperty("class", "placeholder")
-            self._diff_label.setText("")
             return
 
         self._before_stats.setProperty("class", "")
@@ -127,63 +122,13 @@ class FilterPanel(QWidget):
         self._before_stats.style().polish(self._before_stats)
         self._after_stats.style().polish(self._after_stats)
 
-        orig = self._state._original_dataset
+        orig = self._state.original_dataset
         self._before_stats.setText(
             self._build_stats_text(orig if orig is not None else ds)
         )
         self._after_stats.setText(self._build_stats_text(ds))
-        self._compute_diff()
 
-    # ── Before / After / Diff ───────────────────────────────────────────
-
-    def _compute_diff(self) -> None:
-        orig = self._state._original_dataset
-        filtered = self._state.dataset
-        if orig is None or filtered is None:
-            self._diff_label.setText("")
-            return
-
-        o_meta = orig.metadata
-        f_meta = filtered.metadata
-        total = len(o_meta)
-        kept = len(f_meta)
-
-        if total == kept:
-            self._diff_label.setText("No filters applied — datasets are identical.")
-            return
-
-        removed = total - kept
-        lines = [f"Image groups: {removed} of {total} removed"]
-
-        _MAX = _DIFF_TRUNCATE
-
-        # Wells
-        if "well" in o_meta.columns:
-            o_wells = set(o_meta["well"].astype(str).unique())
-            f_wells = set(f_meta["well"].astype(str).unique())
-            removed_wells = natsorted(o_wells - f_wells)
-            line = f"Wells removed: {len(removed_wells)}"
-            if removed_wells:
-                detail = ", ".join(removed_wells)
-                if len(detail) > _MAX:
-                    detail = detail[:_MAX] + "…"
-                line += f" ({detail})"
-            lines.append(line)
-
-        # Fields
-        if "field" in o_meta.columns:
-            o_fields = set(o_meta["field"].astype(str).unique())
-            f_fields = set(f_meta["field"].astype(str).unique())
-            removed_fields = natsorted(o_fields - f_fields)
-            line = f"Fields removed: {len(removed_fields)}"
-            if removed_fields:
-                detail = ", ".join(removed_fields)
-                if len(detail) > _MAX:
-                    detail = detail[:_MAX] + "…"
-                line += f" ({detail})"
-            lines.append(line)
-
-        self._diff_label.setText("\n".join(lines))
+    # ── Stats ──────────────────────────────────────────────────────────
 
     @staticmethod
     def _build_stats_text(ds) -> str:
@@ -268,6 +213,10 @@ class FilterPanel(QWidget):
             self._apply_filters()
 
     def _clear_filter_rows(self) -> None:
+        for combo, edit, btn in self._filter_widgets:
+            combo.deleteLater()
+            edit.deleteLater()
+            btn.deleteLater()
         self._filter_widgets.clear()
         while self._filters_layout.count():
             item = self._filters_layout.takeAt(0)
@@ -279,7 +228,7 @@ class FilterPanel(QWidget):
                         w.deleteLater()
 
     def _get_filterable_columns(self) -> List[str]:
-        ds = self._state._original_dataset or self._state.dataset
+        ds = self._state.original_dataset or self._state.dataset
         if ds is None or ds.metadata is None:
             return []
         skip = {"directory"}
@@ -292,10 +241,12 @@ class FilterPanel(QWidget):
 
     def _on_filter_changed(self, *_args) -> None:
         if not self._updating:
-            self._apply_filters()
+            self._debounce_timer.start()
 
     def _apply_filters(self) -> None:
-        orig = self._state._original_dataset
+        if self._updating:
+            return
+        orig = self._state.original_dataset
         if orig is None:
             return
         ds = orig.from_copy()
@@ -312,8 +263,9 @@ class FilterPanel(QWidget):
         self.filter_changed.emit()
 
     def _reset_filters(self) -> None:
-        if self._state._original_dataset is not None:
-            self._state.dataset = self._state._original_dataset.from_copy()
+        self._debounce_timer.stop()
+        if self._state.original_dataset is not None:
+            self._state.dataset = self._state.original_dataset.from_copy()
         self._updating = True
         self._clear_filter_rows()
         self._updating = False
@@ -334,6 +286,7 @@ class FilterPanel(QWidget):
         return params
 
     def load_from_settings(self, settings) -> None:
+        self._debounce_timer.stop()
         stored = settings.load_params("filter")
         if not stored:
             return

@@ -76,7 +76,7 @@ This places a shortcut on the Desktop and in the Start Menu. The shortcut uses `
 ## Pipeline Order
 
 ```
-Input → Convert[+resize] → Resize → BaSiC → Z-projection → Tile → Segment → Profile
+Input → Convert[+resize] → Resize → BaSiC → Z-projection → Tile → Filter → Segment → Profile
 ```
 
 1. **Convert** — Vendor-format files → `{well}_f{field}_z{z}_t{t}_ch{ch}.tiff` (optional resize during write)
@@ -84,15 +84,18 @@ Input → Convert[+resize] → Resize → BaSiC → Z-projection → Tile → Se
 3. **BaSiC correction** (optional) — Flatfield/darkfield shading correction
 4. **Z-projection** (optional) — Max/mean/min projection of Z-stacks
 5. **Tile splitting** (optional) — Non-overlapping tiles
-6. **Segmentation** (optional) — Cellpose-SAM object detection
-7. **Profiling** — Image-level and object-level feature extraction. Supports multi-object profiling (profile multiple masks with different channel/feature settings in a single run via `object_profilings` list).
+6. **Filter** (optional) — Narrow the dataset by metadata columns (well, field, etc.) using regex patterns before segmentation
+7. **Segmentation** (optional) — Cellpose-SAM object detection
+8. **Profiling** — Image-level and object-level feature extraction. Supports multi-object profiling (profile multiple masks with different channel/feature settings in a single run via `object_profilings` list).
 
 ## Desktop GUI
 
-microProfiler includes a PySide6 desktop GUI that wraps the full pipeline with step-by-step image preview, parameter configuration, progress bars, and a log console.
+microProfiler includes a PySide6 desktop GUI that wraps the full pipeline with step-by-step image preview, parameter configuration and running.
 
 ### Running the GUI
 
+If `microprofiler-install-shortcut` was run after installation, a Windows shortcut will be created — use it to open the GUI directly.
+Otherwise, run with the following terminal command under the `micro` conda environment:
 ```bash
 microprofiler
 ```
